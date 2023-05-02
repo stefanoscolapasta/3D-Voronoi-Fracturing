@@ -1,3 +1,0 @@
-﻿  Main.cpp
-D:\Stefano\OpenGL_stuff\Projects\Maybe_second_try\Maybe_second_try\Main.cpp(165,28): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
-  Maybe_second_try.vcxproj -> D:\Stefano\OpenGL_stuff\Projects\Maybe_second_try\x64\Debug\Maybe_second_try.exe
