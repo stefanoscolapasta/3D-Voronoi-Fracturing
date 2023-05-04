@@ -1,17 +1,19 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#include <iostream>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
-#include"cube.h"
+#include "cube.h"
 #include "shader.h"
 #include "camera.h"
-#include"ground.h"
-
+#include "ground.h"
+#include "physicsEngine.h"
 #include <iostream>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -32,14 +34,6 @@ bool firstMouse = true;
 float deltaTime = 0.0f;	// Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 
-// physics variables
-btBroadphaseInterface* broadphase;
-btDefaultCollisionConfiguration* collisionConfiguration;
-btCollisionDispatcher* dispatcher;
-btSequentialImpulseConstraintSolver* solver;
-btDiscreteDynamicsWorld* dynamicsWorld;
-
-
 int main()
 {
     // glfw: initialize and configure
@@ -49,14 +43,10 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-
-
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
   
-
-
     // --------------------
     GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
     if (window == NULL)
@@ -92,6 +82,7 @@ int main()
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
     
+    //TODO: create class to handle this, its quite messy like this
     unsigned int VBO, VAO;
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -131,42 +122,16 @@ int main()
     ourShader.use();
     // render loop
     // -----------
+    PhysicsEngineAbstraction pe;
+    btRigidBody* cubeRigidBodyC1 = pe.generateCubeRigidbody(cubePositions[0], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
+    btRigidBody* cubeRigidBodyC2 = pe.generateCubeRigidbody(cubePositions[1], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
+    btRigidBody* groundRigidBody = pe.generateGroundRigidbody(groundPositions[0]);
 
-        //initialize physics world
-    // -----------------------------
-    // Broadphase, Collision Configuration, Dispatcher, Solver, and World
-    broadphase = new btDbvtBroadphase();
-    collisionConfiguration = new btDefaultCollisionConfiguration();
-    dispatcher = new btCollisionDispatcher(collisionConfiguration);
-    solver = new btSequentialImpulseConstraintSolver;
-    dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration);
-    dynamicsWorld->setGravity(btVector3(0, -9.81, 0)); // set gravity to -9.81 in the y direction
-
-    // create a rigid body for the cube
-    btTransform startTransform;
-    startTransform.setIdentity();
-    startTransform.setOrigin(cubePositions[0]);
-    btScalar mass(1.0f);
-    btVector3 localInertia(0, 0, 0);
-    btCollisionShape* shape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
-    btDefaultMotionState* cubeMotionState = new btDefaultMotionState(startTransform);
-    shape->calculateLocalInertia(mass, localInertia);
-    btRigidBody::btRigidBodyConstructionInfo rigidBodyCI(mass, cubeMotionState, shape, localInertia);
-    btRigidBody* cubeRigidBody = new btRigidBody(rigidBodyCI);
-    cubeRigidBody->setWorldTransform(startTransform);
-
-    // create a rigid body for the ground plane
-    btCollisionShape* groundShape = new btStaticPlaneShape(btVector3(0, 1, 0),0);
-    btDefaultMotionState* groundMotionState = new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, -1, 0)));
-    btRigidBody::btRigidBodyConstructionInfo groundRigidBodyCI(0, groundMotionState, groundShape, btVector3(0, 0, 0));
-    btRigidBody* groundRigidBody = new btRigidBody(groundRigidBodyCI);
-
-    // add the rigid body to the physics world
-    dynamicsWorld->addRigidBody(cubeRigidBody);
+    // add the cubes rigid body to the physics world
+    pe.dynamicsWorld->addRigidBody(cubeRigidBodyC1);
+    pe.dynamicsWorld->addRigidBody(cubeRigidBodyC2);
     // add the ground rigid body to the physics world
-    dynamicsWorld->addRigidBody(groundRigidBody);
-
-
+    pe.dynamicsWorld->addRigidBody(groundRigidBody);
 
     int i = 0;
 
@@ -186,7 +151,6 @@ int main()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // also clear the depth buffer now!
 
-
         // activate shader
         ourShader.use();
 
@@ -198,49 +162,41 @@ int main()
         glm::mat4 view = camera.GetViewMatrix();
         ourShader.setMat4("view", view);
 
-        // render boxes
+        // UPDATE SIMULATION
+        pe.dynamicsWorld->stepSimulation(deltaTime, 10);
+
+        // MODELS RENDERING
+        //--------------------------------------------------------------------------------------------
+        //  RENDER CUBE 1
         glBindVertexArray(VAO);
-
-        // step the physics simulation
-        dynamicsWorld->stepSimulation(deltaTime, 10);
-
-        // get the transform of the rigid body representing the cube
-        btTransform trans;
-        cubeRigidBody->getMotionState()->getWorldTransform(trans);
-
-        // update the position of the cube
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(trans.getOrigin().getX(), trans.getOrigin().getY(), trans.getOrigin().getZ()));
-        ourShader.setMat4("model", model);
-
-        float angle = 0; // *i
-
-        model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
-
-        ourShader.setMat4("model", model);
-
+        ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBodyC1));
         glDrawArrays(GL_TRIANGLES, 0, 36);
-        
+        //  RENDER CUBE 2
+        ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBodyC2));
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+
+        //  RENDER GROUND
+        glBindVertexArray(groundVAO);
+        ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(groundRigidBody));
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        //--------------------------------------------------------------------------------------------
+
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-        // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
     // optional: de-allocate all resources once they've outlived their purpose:
-    // ------------------------------------------------------------------------
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
-    // ------------------------------------------------------------------
     glfwTerminate();
     return 0;
 }
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-// ---------------------------------------------------------------------------------------------------------
 void processInput(GLFWwindow* window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -258,7 +214,6 @@ void processInput(GLFWwindow* window)
 
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
-// ---------------------------------------------------------------------------------------------
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     // make sure the viewport matches the new window dimensions; note that width and 
@@ -268,7 +223,6 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 
 // glfw: whenever the mouse moves, this callback is called
-// -------------------------------------------------------
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 {
     float xpos = static_cast<float>(xposIn);
@@ -291,7 +245,6 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 }
 
 // glfw: whenever the mouse scroll wheel scrolls, this callback is called
-// ----------------------------------------------------------------------
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
     camera.ProcessMouseScroll(static_cast<float>(yoffset));
