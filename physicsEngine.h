@@ -49,6 +49,26 @@ class PhysicsEngineAbstraction {
 			return cubeRigidBodyC1;
 		}
 
+		btRigidBody* generateTetrahedronRigidbody(btVector3 startingPosition, btVector3 tetrahedronVertices[],  btVector3 scaleFactor) {
+			btTransform startTransform;
+			startTransform.setIdentity();
+			startTransform.setOrigin(startingPosition);
+			btScalar mass(1.0f);
+			btVector3 localInertia(0, 0, 0);
+			btConvexHullShape* shape = new btConvexHullShape();
+			for (int i = 0; i < 5; i++) {
+				shape->addPoint(tetrahedronVertices[i]);
+			}
+			shape->setLocalScaling(scaleFactor);
+			btDefaultMotionState* tetrahedronMotionState = new btDefaultMotionState(startTransform);
+			shape->calculateLocalInertia(mass, localInertia);
+			btRigidBody::btRigidBodyConstructionInfo rigidBody(mass, tetrahedronMotionState, shape, localInertia);
+			btRigidBody* tetrahedronRigidBody = new btRigidBody(rigidBody);
+			tetrahedronRigidBody->setWorldTransform(startTransform);
+			return tetrahedronRigidBody;
+		}
+
+
 		btRigidBody* generateGroundRigidbody(btVector3 startingPosition) {
 			//Remember that it's an infinite plane
 			btTransform startGroundTransform;

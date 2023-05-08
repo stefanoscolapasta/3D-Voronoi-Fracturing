@@ -16,7 +16,6 @@
 #include "model.h"
 #include "physicsEngine.h"
 #include <iostream>
-
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
@@ -38,6 +37,7 @@ float lastFrame = 0.0f;
 
 int main()
 {
+    int i, j;
     // glfw: initialize and configure
     // ------------------------------
     glfwInit();
@@ -85,8 +85,15 @@ int main()
 
     // load models
     // -----------
-    Model ourModel("cube/cube.obj"); 
 
+    const int numTetrahedrons = 6;
+    Model *tetraModels[numTetrahedrons];
+    for (i = 0; i < numTetrahedrons; i++) {
+        string path = "tetra/tetra" + std::to_string(i) +".obj";
+        tetraModels[i] = new Model(path);
+    }
+  
+    
 
     unsigned int groundVBO, groundVAO;
     glGenVertexArrays(1, &groundVAO);
@@ -106,11 +113,51 @@ int main()
 
     PhysicsEngineAbstraction pe;
 
-    btRigidBody* cubeRigidBody = pe.generateCubeRigidbody(cubePositions[0], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
+    //btRigidBody* cubeRigidBody = pe.generateCubeRigidbody(cubePositions[0], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
     btRigidBody* groundRigidBody = pe.generateGroundRigidbody(groundPositions[0]);
     // add the ground rigid body to the physics world
-    pe.dynamicsWorld->addRigidBody(cubeRigidBody);
+    //pe.dynamicsWorld->addRigidBody(cubeRigidBody);
     pe.dynamicsWorld->addRigidBody(groundRigidBody);
+
+
+    // Generate tetrahedrons ...
+
+    btRigidBody* tetrahedronRigidBodies[numTetrahedrons];
+    btVector3 tetrahedronVertices[numTetrahedrons][5];
+
+    for (i = 0; i < numTetrahedrons; i++) {
+       
+        int index = 0;
+        for (j = 0; j < tetraModels[i]->meshes[0].vertices.size(); j++) {
+            btVector3 newPoint = btVector3(tetraModels[i]->meshes[0].vertices[j].Position.x,
+                tetraModels[i]->meshes[0].vertices[j].Position.y,
+                tetraModels[i]->meshes[0].vertices[j].Position.z);
+            bool already_exists = false;
+            
+            for (int k = 0; k < j; k++) {
+                if (newPoint == tetrahedronVertices[i][k]) {
+                    already_exists = true;
+                    break;
+                }
+            }
+            if (!already_exists) {
+                tetrahedronVertices[i][index] = newPoint;
+                index++;
+            }
+        }
+       btRigidBody* tetrahedronRigidBody = pe.generateTetrahedronRigidbody(
+            cubePositions[0], // Use cube position as starting position
+           tetrahedronVertices[i],
+           btVector3(1.0f,1.0f,1.0f)
+        );
+        tetrahedronRigidBodies[i] = tetrahedronRigidBody;
+        pe.dynamicsWorld->addRigidBody(tetrahedronRigidBodies[i]);
+        
+
+    }
+
+
+
 
     while (!glfwWindowShouldClose(window))
     {
@@ -131,7 +178,6 @@ int main()
         // activate shader
         ourShader.use();
 
-
         // pass projection matrix to shader (note that in this case it could change every frame)
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         ourShader.setMat4("projection", projection);
@@ -143,12 +189,14 @@ int main()
         // UPDATE SIMULATION
         pe.dynamicsWorld->stepSimulation(deltaTime, 10);
 
-        // Draw the debug lines
-        pe.dynamicsWorld->debugDrawWorld();
-
-        ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
-        ourModel.Draw(ourShader);
-
+        //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
+        for (i = 0; i < numTetrahedrons; i++){
+            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetrahedronRigidBodies[i]));
+            tetraModels[i]->Draw(ourShader);
+        }
+        
+        
+        
         glBindVertexArray(groundVAO);
         ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(groundRigidBody));
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -224,3 +272,4 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
     camera.ProcessMouseScroll(static_cast<float>(yoffset));
 }
+
