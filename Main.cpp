@@ -4,40 +4,20 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/euler_angles.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
 #include "cube.h"
 #include "shader.h"
-#include "camera.h"
 #include "ground.h"
 #include "model.h"
 #include "physicsEngine.h"
 #include <iostream>
-
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
-void processInput(GLFWwindow* window);
-
-// settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
-
-// camera
-Camera camera(glm::vec3(0.0f, 0.0f, 15.0f));
-float lastX = SCR_WIDTH / 2.0f;
-float lastY = SCR_HEIGHT / 2.0f;
-bool firstMouse = true;
-
-// timing
-float deltaTime = 0.0f;
-float lastFrame = 0.0f;
+#include "utils.h"
 
 int main()
 {
+    int i, j;
     // glfw: initialize and configure
     // ------------------------------
     glfwInit();
@@ -51,7 +31,7 @@ int main()
 
     // glfw window creation
     // --------------------
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
+    GLFWwindow* window = createWindow();
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -85,8 +65,15 @@ int main()
 
     // load models
     // -----------
-    Model ourModel("cube/cube.obj"); 
 
+    const int numTetrahedrons = 6;
+    Model *tetraModels[numTetrahedrons];
+    for (i = 0; i < numTetrahedrons; i++) {
+        string path = "tetra/tetra" + std::to_string(i) +".obj";
+        tetraModels[i] = new Model(path);
+    }
+  
+    
 
     unsigned int groundVBO, groundVAO;
     glGenVertexArrays(1, &groundVAO);
@@ -106,18 +93,57 @@ int main()
 
     PhysicsEngineAbstraction pe;
 
-    btRigidBody* cubeRigidBody = pe.generateCubeRigidbody(cubePositions[0], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
+    //btRigidBody* cubeRigidBody = pe.generateCubeRigidbody(cubePositions[0], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
     btRigidBody* groundRigidBody = pe.generateGroundRigidbody(groundPositions[0]);
     // add the ground rigid body to the physics world
-    pe.dynamicsWorld->addRigidBody(cubeRigidBody);
+    //pe.dynamicsWorld->addRigidBody(cubeRigidBody);
     pe.dynamicsWorld->addRigidBody(groundRigidBody);
+
+
+    // Generate tetrahedrons ...
+
+    btRigidBody* tetrahedronRigidBodies[numTetrahedrons];
+    btVector3 tetrahedronVertices[numTetrahedrons][5];
+
+    for (i = 0; i < numTetrahedrons; i++) {
+       
+        int index = 0;
+        for (j = 0; j < tetraModels[i]->meshes[0].vertices.size(); j++) {
+            btVector3 newPoint = btVector3(tetraModels[i]->meshes[0].vertices[j].Position.x,
+                tetraModels[i]->meshes[0].vertices[j].Position.y,
+                tetraModels[i]->meshes[0].vertices[j].Position.z);
+            bool already_exists = false;
+            
+            for (int k = 0; k < j; k++) {
+                if (newPoint == tetrahedronVertices[i][k]) {
+                    already_exists = true;
+                    break;
+                }
+            }
+            if (!already_exists) {
+                tetrahedronVertices[i][index] = newPoint;
+                index++;
+            }
+        }
+       btRigidBody* tetrahedronRigidBody = pe.generateTetrahedronRigidbody(
+            cubePositions[0], // Use cube position as starting position
+           tetrahedronVertices[i],
+           btVector3(1.0f,1.0f,1.0f)
+        );
+        tetrahedronRigidBodies[i] = tetrahedronRigidBody;
+        pe.dynamicsWorld->addRigidBody(tetrahedronRigidBodies[i]);
+        
+
+    }
+
+
+
 
     while (!glfwWindowShouldClose(window))
     {
         //Calculate deltatime
         float currentFrame = glfwGetTime();
-        deltaTime = currentFrame - lastFrame;
-        lastFrame = currentFrame;
+        setFrame( currentFrame - getLastFrame(),currentFrame) ;
 
         // input
         // -----
@@ -131,24 +157,25 @@ int main()
         // activate shader
         ourShader.use();
 
-
         // pass projection matrix to shader (note that in this case it could change every frame)
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(getCamera().Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         ourShader.setMat4("projection", projection);
 
         // camera/view transformation
-        glm::mat4 view = camera.GetViewMatrix();
+        glm::mat4 view = getCamera().GetViewMatrix();
         ourShader.setMat4("view", view);
 
         // UPDATE SIMULATION
-        pe.dynamicsWorld->stepSimulation(deltaTime, 10);
+        pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
 
-        // Draw the debug lines
-        pe.dynamicsWorld->debugDrawWorld();
-
-        ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
-        ourModel.Draw(ourShader);
-
+        //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
+        for (i = 0; i < numTetrahedrons; i++){
+            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetrahedronRigidBodies[i]));
+            tetraModels[i]->Draw(ourShader);
+        }
+        
+        
+        
         glBindVertexArray(groundVAO);
         ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(groundRigidBody));
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -166,61 +193,8 @@ int main()
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
     glfwTerminate();
+
+
     return 0;
 }
 
-// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-// ---------------------------------------------------------------------------------------------------------
-void processInput(GLFWwindow* window)
-{
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.ProcessKeyboard(FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.ProcessKeyboard(BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.ProcessKeyboard(LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.ProcessKeyboard(RIGHT, deltaTime);
-}
-
-// glfw: whenever the window size changed (by OS or user resize) this callback function executes
-// ---------------------------------------------------------------------------------------------
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    // make sure the viewport matches the new window dimensions; note that width and 
-    // height will be significantly larger than specified on retina displays.
-    glViewport(0, 0, width, height);
-}
-
-// glfw: whenever the mouse moves, this callback is called
-// -------------------------------------------------------
-void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
-{
-    float xpos = static_cast<float>(xposIn);
-    float ypos = static_cast<float>(yposIn);
-
-    if (firstMouse)
-    {
-        lastX = xpos;
-        lastY = ypos;
-        firstMouse = false;
-    }
-
-    float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
-
-    lastX = xpos;
-    lastY = ypos;
-
-    camera.ProcessMouseMovement(xoffset, yoffset);
-}
-
-// glfw: whenever the mouse scroll wheel scrolls, this callback is called
-// ----------------------------------------------------------------------
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
-{
-    camera.ProcessMouseScroll(static_cast<float>(yoffset));
-}
