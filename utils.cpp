@@ -140,4 +140,36 @@ void subMatrix(float mat[N][N], float temp[N][N], int p, int q, int n) {
     }
 }
 
+#include <glm/glm.hpp>
+
+glm::vec3 convertToVec3(btVector3 vec) {
+    glm::vec3 vector = glm::vec3(vec.getX(), vec.getY(), vec.getZ());
+    return vector;
+}
+
+btVector3 getSphereCenter(btVector3 p1, btVector3 p2, btVector3 p3, btVector3 p4) {
+    glm::vec3 P1 = convertToVec3(p1);
+    glm::vec3 P2 = convertToVec3(p2);
+    glm::vec3 P3 = convertToVec3(p3);
+    glm::vec3 P4 = convertToVec3(p4);
+
+    glm::vec3 midpoint1 = 0.5f * (P1 + P2);
+    glm::vec3 midpoint2 = 0.5f * (P3 + P4);
+    glm::vec3 normal1 = glm::normalize(glm::cross(P2 - P1, midpoint1 - P1));
+    glm::vec3 normal2 = glm::normalize(glm::cross(P4 - P3, midpoint2 - P3));
+    glm::vec3 sphereCenter = intersection(normal1, midpoint1, normal2, midpoint2);
+
+    return btVector3(sphereCenter.x, sphereCenter.y, sphereCenter.z);
+}
+
+glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, glm::vec3 point2) {
+    glm::vec3 dir = glm::normalize(glm::cross(normal1, normal2));
+    float d1 = glm::dot(normal1, point1);
+    float d2 = glm::dot(normal2, point2);
+    float d3 = glm::dot(dir, point1 - point2);
+    float t = (d1 - d2) / d3;
+    return point1 + t * dir;
+}
+
+
 
