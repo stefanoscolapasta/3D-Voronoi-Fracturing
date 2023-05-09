@@ -16,6 +16,8 @@
 #include "model.h"
 #include "physicsEngine.h"
 #include <iostream>
+#include "GeometricAlgorithms.h"
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
@@ -92,8 +94,10 @@ int main()
         string path = "tetra/tetra" + std::to_string(i) +".obj";
         tetraModels[i] = new Model(path);
     }
-  
     
+    
+    Model *tetrahedronForTest = new Model("geom/tetrahedron");
+    VoronoiFracturing vorFrac(tetrahedronForTest);
 
     unsigned int groundVBO, groundVAO;
     glGenVertexArrays(1, &groundVAO);
@@ -128,7 +132,7 @@ int main()
     for (i = 0; i < numTetrahedrons; i++) {
        
         int index = 0;
-        for (j = 0; j < tetraModels[i]->meshes[0].vertices.size(); j++) {
+        for (int j = 0; j < tetraModels[i]->meshes[0].vertices.size(); j++) {
             btVector3 newPoint = btVector3(tetraModels[i]->meshes[0].vertices[j].Position.x,
                 tetraModels[i]->meshes[0].vertices[j].Position.y,
                 tetraModels[i]->meshes[0].vertices[j].Position.z);
@@ -152,11 +156,7 @@ int main()
         );
         tetrahedronRigidBodies[i] = tetrahedronRigidBody;
         pe.dynamicsWorld->addRigidBody(tetrahedronRigidBodies[i]);
-        
-
     }
-
-
 
 
     while (!glfwWindowShouldClose(window))
@@ -195,12 +195,9 @@ int main()
             tetraModels[i]->Draw(ourShader);
         }
         
-        
-        
         glBindVertexArray(groundVAO);
         ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(groundRigidBody));
         glDrawArrays(GL_TRIANGLES, 0, 6);
-
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);

@@ -1,5 +1,6 @@
 #pragma once
 #include<glm/glm.hpp>
+
 float vertices[] = {
     //Vertex coords       //Colors
     -0.5f, -0.5f, -0.5f,  0.0f,  0.3f, 0.3f,
