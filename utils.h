@@ -32,9 +32,20 @@ float getLastFrame();
 // = 0-> p is on the plane defined by a, b,c
 btVector3 getSphereCenter(btVector3 points[]);
 glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, glm::vec3 point2);
-int Orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p);
+int orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p);
 float determinantOfMatrix(float matrix[N][N], int n);
 void subMatrix(float mat[N][N], float temp[N][N], int p, int q, int n);
+struct TriangleFacet {
+    Tetrahedron *father;
+    btVector3 vertices[3];
+};
+
+struct Tetrahedron {
+    unsigned int VAO;
+    btVector3 allSingularVertices[4];
+    TriangleFacet facets[4];
+};
+btVector3 getTetrahedronCenter(Tetrahedron tetrahedron);
 //bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P);
 
 

@@ -93,8 +93,11 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 
 
 //MATHS
-
-int Orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p) {
+//determines if a point p is over, under or lies on a plane defined by three points a, b and c
+//>0 -> p is above the plane defined by a, b,c
+//<0 -> p is under the plane defined by a, b,c
+// = 0-> p is on the plane defined by a, b,c
+int orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p) {
     float mat[N][N] = {
         a.getX(), a.getY(), a.getZ(), 1,
         b.getX(), b.getY(), b.getZ(), 1,
@@ -162,6 +165,16 @@ btVector3 getSphereCenter(btVector3 points[]) {
 
     return btVector3(sphereCenter.x, sphereCenter.y, sphereCenter.z);
 }
+
+btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
+    btVector3 center(0, 0, 0);
+    for (int i = 0; i < 4; i++) {
+        center += tetrahedron.allSingularVertices[i];
+    }
+    center /= 4;
+    return center;
+}
+
 
 //bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P) {
 //    glm::vec3 center = getSphereCenter(//vertices of tetra 

@@ -140,10 +140,52 @@ public:
         bool end = false;
         TriangleFacet f;
         while (!end) {
-            int randomIndex_f = std::rand() % 4; //random index from 0 to 3 - every tetra has 4 fixed facets
-            std::vector<Tetrahedron> previous_neighbours = getNeighbours(tetras, previous);
+            int randomIndex_f = std::rand() %3; //random index from 0 to 2 - every tetra has 4 fixed facets
+            f = t.facets[randomIndex_f];
+            std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, t);
             //check if p is inside one of the neighbours
+            bool isPointInNeighbour = false;
+            for (auto neighbour : t_neighbours)
+                if (isPointInsideTetrahedron(neighbour,p))
+                    isPointInNeighbour = true;
 
+            //point is not neighbour of "previous" through facet f
+            if (!(isPointInNeighbour && isPointInsideFacet(f, p))) {
+                //where is the center positioned in space respect to the facet we are considering
+                int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(t));
+                //same thing for point
+                int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
+                //if point is not in the same side of center respect to the facet, the two orientations
+                //will have different signs -> negative product
+                if (centerOrientation * pointOrientation < 0) {
+                    previous = t;
+                    t = *f.father;
+                }
+            }
+            //point is neighbour of "previous" through facet f
+            else {
+                f = t.facets[(randomIndex_f + 1)%3];
+                //same process as before
+                if (!(isPointInNeighbour && isPointInsideFacet(f, p))) {
+                    int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(t));
+                    int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
+                    if (centerOrientation * pointOrientation < 0) {
+                        previous = t;
+                        t = *f.father;
+                    }
+                }
+                else {
+                    f = t.facets[(randomIndex_f + 2) % 3];
+                    if (!(isPointInNeighbour && isPointInsideFacet(f, p))) {
+                        int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(t));
+                        int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
+                        if (centerOrientation * pointOrientation < 0) {
+                            previous = t;
+                            t = *f.father;
+                        }
+                    }
+                }
+            }
         }
     }
 
