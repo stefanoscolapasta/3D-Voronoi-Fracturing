@@ -157,7 +157,7 @@ int main()
             ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetraRigidbody));
             //Here we need the VAO for each tetrahedron as their shape is not always the same
             // 
-            glDrawArrays(GL_LINE_STRIP, 0, 4);
+            glDrawArrays(GL_LINE_STRIP, 0, 36);
             //tetrahedronForTest->Draw(ourShader);
         }
         glBindVertexArray(groundVAO);
