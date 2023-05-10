@@ -4,8 +4,14 @@
 #include <bullet/btBulletDynamicsCommon.h>
 #include <vector>
 #include <set>
+#include<algorithm>
+#include "utils.h"
+#include "model.h"
+#include "physicsEngine.h"
+#include "Cube.h"
 
 struct TriangleFacet {
+    Tetrahedron *father;
     btVector3 vertices[3];
 };
 
@@ -23,8 +29,10 @@ public:
     std::vector<btRigidBody*> tetraRigidbodies;
     std::vector<Tetrahedron> tetrahedrons;
     std::map<btRigidBody*, unsigned int> tetraToVAO;
+    TriangleFacet visibility_walk(std::vector<Tetrahedron> tetras, btVector3 p);
+    std::vector<Tetrahedron> getNeighbours(std::vector<Tetrahedron> allTetras, Tetrahedron t);
 
-    VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe) : pe(pe){ //Will have to generalize to other shapes
+    VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe) : pe(pe) { //Will have to generalize to other shapes
         tetrahedronsModelsVector.push_back(tetrahedronModel);
     };
 
@@ -33,14 +41,14 @@ public:
 
         for (auto& newTetrahedron : newTetrahedrons) {
             newTetrahedron.VAO = createTetrahedronVAO(newTetrahedron);
-            
+
             tetrahedrons.push_back(newTetrahedron);
 
             btRigidBody* tetraRigidbody = pe.generateTetrahedronRigidbody(
-                                            cubePositions[0], // Use cube position as starting position
-                                            newTetrahedron.allSingularVertices,
-                                            btVector3(1.0f, 1.0f, 1.0f)
-                                        );
+                cubePositions[0], // Use cube position as starting position
+                newTetrahedron.allSingularVertices,
+                btVector3(1.0f, 1.0f, 1.0f)
+            );
 
             tetraToVAO[tetraRigidbody] = newTetrahedron.VAO;
             tetraRigidbodies.push_back(tetraRigidbody);
@@ -67,15 +75,19 @@ public:
             //Each facet will now become part of a separate tetrahedron
             //I need to generate 3 new facets, and together with the initial one it will generate a new tetrahedron
             TriangleFacet facet1 = {
+                &newTetrahedron,
                 { facet.vertices[0], facet.vertices[1], t }
             };
             TriangleFacet facet2 = {
+                &newTetrahedron,
                 { facet.vertices[1], facet.vertices[2], t }
             };
             TriangleFacet facet3 = {
+                &newTetrahedron,
                 { facet.vertices[2], facet.vertices[0], t }
             };
             TriangleFacet facet4 = {
+                &newTetrahedron,
                 { facet.vertices[0], facet.vertices[1], facet.vertices[2]}
             };
 
@@ -86,8 +98,8 @@ public:
                 bool alreadyAdded = false;
                 btVector3 vertexConverted = fromVertexToBtVector3(vertex);
                 for (int i = 0; i < added; i++) {
-                    if (allVertices[i].x() == vertexConverted.x() && 
-                        allVertices[i].y() == vertexConverted.y() && 
+                    if (allVertices[i].x() == vertexConverted.x() &&
+                        allVertices[i].y() == vertexConverted.y() &&
                         allVertices[i].z() == vertexConverted.z()) { //Not sure if btVector3 has an isequal, so I check component by component
                         alreadyAdded = true;
                         break;
@@ -102,7 +114,7 @@ public:
             if (added != 4) {
                 throw std::invalid_argument("You have less than 4 vertices in your tetrahedron");
             }
-            
+
 
             Tetrahedron newInsertedTetrahedron = {
                 {NULL},
@@ -116,6 +128,70 @@ public:
         return newTetrahedrons;
     }
 
+
+
+
+    //triangles -> tetrahedra
+    //edges -> facets
+    TriangleFacet visibility_walk(std::vector<Tetrahedron> tetras, btVector3 p) {
+        int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
+        Tetrahedron t = tetras.at(randomIndex_t);
+        Tetrahedron previous = t;
+        bool end = false;
+        TriangleFacet f;
+        while (!end) {
+            int randomIndex_f = std::rand() % 4; //random index from 0 to 3 - every tetra has 4 fixed facets
+            std::vector<Tetrahedron> previous_neighbours = getNeighbours(tetras, previous);
+            //check if p is inside one of the neighbours
+
+        }
+    }
+
+    std::vector<Tetrahedron> getNeighbours(std::vector<Tetrahedron> allTetras, Tetrahedron t) {
+        std::vector<Tetrahedron> neighbors;
+
+        // Iterate through all tetrahedrons
+        for (auto tetra : allTetras) {
+            // Skip the input tetrahedron
+            if (areTetrasEqual(tetra, t)) {
+                continue;
+            }
+
+            // Check if the tetrahedron shares a facet with the input tetrahedron
+            for (auto f_to_compare : tetra.facets) {
+                bool isSameFacet = true;
+                for (auto f : t.facets) {
+                    bool sameVertices = false;
+                    for (int i = 0; i < 3; i++) {
+                        bool foundMatchingVertex = false;
+                        for (auto v : f_to_compare.vertices) {
+                            if (v == f.vertices[i]) {
+                                foundMatchingVertex = true;
+                                break;
+                            }
+                        }
+
+
+                        if (!foundMatchingVertex) {
+                            sameVertices = false;
+                            break;
+                        }
+                        else {
+                            sameVertices = true;
+                        }
+                    }
+                    if (sameVertices) {
+                        isSameFacet = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return neighbors;
+    }
+
+ 
 private:
 
     PhysicsEngineAbstraction pe;
