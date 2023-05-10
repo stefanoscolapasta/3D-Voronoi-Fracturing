@@ -3,39 +3,59 @@
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
 #include <vector>
+#include <set>
 
-struct triangleFacet {
+struct TriangleFacet {
     btVector3 vertices[3];
 };
 
-struct tetrahedron {
-    triangleFacet facets[4];
+struct Tetrahedron {
+    unsigned int VAO;
+    btVector3 allSingularVertices[4];
+    TriangleFacet facets[4];
 };
 
 class VoronoiFracturing {
 
 public:
 
-    std::vector<Model*> tetrahedronverticesVector; //Its a vector of arrays of btVector3
+    std::vector<Model*> tetrahedronsModelsVector; //Its a vector of arrays of btVector3
+    std::vector<btRigidBody*> tetraRigidbodies;
+    std::vector<Tetrahedron> tetrahedrons;
+    std::map<btRigidBody*, unsigned int> tetraToVAO;
 
-    VoronoiFracturing(Model* tetrahedronvertices) { //Will have to generalize to other shapes
-        tetrahedronverticesVector.push_back(tetrahedronvertices);
+    VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe) : pe(pe){ //Will have to generalize to other shapes
+        tetrahedronsModelsVector.push_back(tetrahedronModel);
     };
 
-    std::vector<tetrahedron> insertOnePoint(btVector3 t) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
-        std::vector<tetrahedron> newTetrahedrons = flip14(t, tetrahedronverticesVector[0]->meshes[0]);
+    void insertOnePoint(btVector3 t) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
+        std::vector<Tetrahedron> newTetrahedrons = flip14(t, tetrahedronsModelsVector[0]->meshes[0]);
 
+        for (auto& newTetrahedron : newTetrahedrons) {
+            newTetrahedron.VAO = createTetrahedronVAO(newTetrahedron);
+            
+            tetrahedrons.push_back(newTetrahedron);
+
+            btRigidBody* tetraRigidbody = pe.generateTetrahedronRigidbody(
+                                            cubePositions[0], // Use cube position as starting position
+                                            newTetrahedron.allSingularVertices,
+                                            btVector3(1.0f, 1.0f, 1.0f)
+                                        );
+
+            tetraToVAO[tetraRigidbody] = newTetrahedron.VAO;
+            tetraRigidbodies.push_back(tetraRigidbody);
+            pe.dynamicsWorld->addRigidBody(tetraRigidbody);
+        }
     }
 
-    std::vector<tetrahedron> flip14(btVector3 t, Mesh tetrahedronvertices) {
-        
-        std::vector<tetrahedron> newTetrahedrons;
+    std::vector<Tetrahedron> flip14(btVector3 t, Mesh tetrahedronvertices) {
+        std::vector<Tetrahedron> newTetrahedrons;
 
-        tetrahedron newTetrahedron;
+        Tetrahedron newTetrahedron;
 
         for (int facet = 0; facet < tetrahedronvertices.indices.size() / 3; facet++) { //I consider the faces to be triangular //this for should be from [0 to 3]
 
-            triangleFacet tetrahedronFacet;
+            TriangleFacet tetrahedronFacet;
             for (int faceVertexIndex = 0; faceVertexIndex < 3; faceVertexIndex++) {
                 tetrahedronFacet.vertices[faceVertexIndex] = fromVertexToBtVector3(tetrahedronvertices.vertices[tetrahedronvertices.indices[facet + faceVertexIndex]]);
             }
@@ -46,28 +66,59 @@ public:
         for (auto facet : newTetrahedron.facets) {
             //Each facet will now become part of a separate tetrahedron
             //I need to generate 3 new facets, and together with the initial one it will generate a new tetrahedron
-            triangleFacet facet1 = {
-                {facet.vertices[0], facet.vertices[1], t}
+            TriangleFacet facet1 = {
+                { facet.vertices[0], facet.vertices[1], t }
             };
-            triangleFacet facet2 = {
-                {facet.vertices[1], facet.vertices[2], t}
+            TriangleFacet facet2 = {
+                { facet.vertices[1], facet.vertices[2], t }
             };
-            triangleFacet facet3 = {
-                {facet.vertices[2], facet.vertices[3], t}
+            TriangleFacet facet3 = {
+                { facet.vertices[2], facet.vertices[0], t }
+            };
+            TriangleFacet facet4 = {
+                { facet.vertices[0], facet.vertices[1], facet.vertices[2]}
             };
 
-            tetrahedron newInsertedTetrahedron = {
-                { facet, facet1, facet2, facet3 }
+
+            btVector3 allVertices[4];
+            int added = 0;
+            for (auto& vertex : tetrahedronvertices.vertices) {
+                bool alreadyAdded = false;
+                btVector3 vertexConverted = fromVertexToBtVector3(vertex);
+                for (int i = 0; i < added; i++) {
+                    if (allVertices[i].x() == vertexConverted.x() && 
+                        allVertices[i].y() == vertexConverted.y() && 
+                        allVertices[i].z() == vertexConverted.z()) { //Not sure if btVector3 has an isequal, so I check component by component
+                        alreadyAdded = true;
+                        break;
+                    }
+                }
+                if (!alreadyAdded) {
+                    allVertices[added] = vertexConverted;
+                    added += 1;
+                }
+            }
+
+            if (added != 4) {
+                throw std::invalid_argument("You have less than 4 vertices in your tetrahedron");
+            }
+            
+
+            Tetrahedron newInsertedTetrahedron = {
+                {NULL},
+                {allVertices[0], allVertices[1], allVertices[2], allVertices[3]},
+                { facet1, facet2, facet3, facet4 }
             };
 
             newTetrahedrons.push_back(newInsertedTetrahedron);
         }
 
         return newTetrahedrons;
-
     }
 
 private:
+
+    PhysicsEngineAbstraction pe;
 
     btVector3 fromVertexToBtVector3(Vertex v) {
         return btVector3(v.Position.x, v.Position.y, v.Position.z);
@@ -82,27 +133,19 @@ private:
         return false;
     }
 
-    //btVector3* fromModelToVerticesVector(Model* tetrahedronModel) {
+    unsigned int createTetrahedronVAO(Tetrahedron tetra) {
+        unsigned int tetraVBO, tetraVAO;
+        glGenVertexArrays(1, &tetraVAO);
+        glGenBuffers(1, &tetraVBO);
 
-    //    //btRigidBody* tetrahedronRigidBodies[numTetrahedrons];
-    //    btVector3 tetrahedronVertices[5]; //Because a tetrahedron has 5 vertices yay
-    //    int currentlyGeneratedTetrahedrons = 0;
-    //    const int currentVerticesSize = tetrahedronModel->meshes[0].vertices.size();
+        glBindVertexArray(tetraVAO);
 
-    //    for (int j = 0; j < currentVerticesSize; j++) {
-    //        btVector3 newPoint = btVector3(tetrahedronModel->meshes[0].vertices[j].Position.x,
-    //            tetrahedronModel->meshes[0].vertices[j].Position.y,
-    //            tetrahedronModel->meshes[0].vertices[j].Position.z);
-
-    //        if (!verticeAlreadyExistForTetrahedron(j, tetrahedronVertices, newPoint)) {
-    //            tetrahedronVertices[currentlyGeneratedTetrahedrons] = newPoint;
-    //        }
-    //    }
-    //    return tetrahedronVertices;
-    //}
+        glBindBuffer(GL_ARRAY_BUFFER, tetraVBO);
+        glBufferData(GL_ARRAY_BUFFER, 4 * sizeof(btVector3), tetra.allSingularVertices, GL_STATIC_DRAW);
+        // position attribute
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(btScalar), (void*)0);
+        glEnableVertexAttribArray(0);
+        return tetraVAO;
+    }
 
 };
-
-
-
-

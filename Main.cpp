@@ -88,17 +88,9 @@ int main()
     // load models
     // -----------
 
-    const int numTetrahedrons = 6;
-    Model *tetraModels[numTetrahedrons];
-    for (i = 0; i < numTetrahedrons; i++) {
-        string path = "tetra/tetra" + std::to_string(i) +".obj";
-        tetraModels[i] = new Model(path);
-    }
-    
-    
-    Model *tetrahedronForTest = new Model("geom/tetrahedron");
-    VoronoiFracturing vorFrac(tetrahedronForTest);
 
+    Model *tetrahedronForTest = new Model("geom/tetrahedron.obj");
+    
     unsigned int groundVBO, groundVAO;
     glGenVertexArrays(1, &groundVAO);
     glGenBuffers(1, &groundVBO);
@@ -122,45 +114,14 @@ int main()
     // add the ground rigid body to the physics world
     //pe.dynamicsWorld->addRigidBody(cubeRigidBody);
     pe.dynamicsWorld->addRigidBody(groundRigidBody);
-
-
-    // Generate tetrahedrons ...
-
-    btRigidBody* tetrahedronRigidBodies[numTetrahedrons];
-    btVector3 tetrahedronVertices[numTetrahedrons][5];
-
-    for (i = 0; i < numTetrahedrons; i++) {
-       
-        int index = 0;
-        for (int j = 0; j < tetraModels[i]->meshes[0].vertices.size(); j++) {
-            btVector3 newPoint = btVector3(tetraModels[i]->meshes[0].vertices[j].Position.x,
-                tetraModels[i]->meshes[0].vertices[j].Position.y,
-                tetraModels[i]->meshes[0].vertices[j].Position.z);
-            bool already_exists = false;
-            
-            for (int k = 0; k < j; k++) {
-                if (newPoint == tetrahedronVertices[i][k]) {
-                    already_exists = true;
-                    break;
-                }
-            }
-            if (!already_exists) {
-                tetrahedronVertices[i][index] = newPoint;
-                index++;
-            }
-        }
-       btRigidBody* tetrahedronRigidBody = pe.generateTetrahedronRigidbody(
-            cubePositions[0], // Use cube position as starting position
-           tetrahedronVertices[i],
-           btVector3(1.0f,1.0f,1.0f)
-        );
-        tetrahedronRigidBodies[i] = tetrahedronRigidBody;
-        pe.dynamicsWorld->addRigidBody(tetrahedronRigidBodies[i]);
-    }
-
+    VoronoiFracturing vorFrac(tetrahedronForTest, pe);
+    
+    //I added the centroid (kinda)
+    vorFrac.insertOnePoint(btVector3(0.0f,0.0f,0.0f));
 
     while (!glfwWindowShouldClose(window))
     {
+        
         //Calculate deltatime
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
@@ -190,11 +151,15 @@ int main()
         pe.dynamicsWorld->stepSimulation(deltaTime, 10);
 
         //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
-        for (i = 0; i < numTetrahedrons; i++){
-            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetrahedronRigidBodies[i]));
-            tetraModels[i]->Draw(ourShader);
+        for (auto& tetraRigidbody : vorFrac.tetraRigidbodies) {
+            
+            glBindVertexArray(vorFrac.tetraToVAO[tetraRigidbody]);
+            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetraRigidbody));
+            //Here we need the VAO for each tetrahedron as their shape is not always the same
+            // 
+            glDrawArrays(GL_LINE_STRIP, 0, 4);
+            //tetrahedronForTest->Draw(ourShader);
         }
-        
         glBindVertexArray(groundVAO);
         ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(groundRigidBody));
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -229,6 +194,14 @@ void processInput(GLFWwindow* window)
         camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime);
+}
+
+btVector3 getCentroid(const std::vector<btVector3>& _pts) {
+    btVector3 centroid;
+    for (int i = 0; i < _pts.size(); i++) {
+        centroid += _pts[i] / (float)_pts.size();
+    }
+    return centroid;
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes

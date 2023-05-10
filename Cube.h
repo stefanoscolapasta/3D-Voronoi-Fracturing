@@ -47,7 +47,7 @@ float vertices[] = {
 };
 // world space positions of our cubes
 btVector3 cubePositions[] = {
-    btVector3(0.0f,  50.0f,  0.0f),
+    btVector3(0.0f,  2.0f,  0.0f),
     btVector3(0.3f,  0.0f, 0.45f),
     btVector3(-1.5f, -2.2f, -2.5f),
     btVector3(-3.8f, -2.0f, -12.3f),

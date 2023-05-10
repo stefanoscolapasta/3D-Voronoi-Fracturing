@@ -49,14 +49,15 @@ class PhysicsEngineAbstraction {
 			return cubeRigidBodyC1;
 		}
 
-		btRigidBody* generateTetrahedronRigidbody(btVector3 startingPosition, btVector3 tetrahedronVertices[],  btVector3 scaleFactor) {
+		btRigidBody* generateTetrahedronRigidbody(btVector3 startingPosition, btVector3 *tetrahedronVertices,  btVector3 scaleFactor) {
+
 			btTransform startTransform;
 			startTransform.setIdentity();
 			startTransform.setOrigin(startingPosition);
 			btScalar mass(1.0f);
 			btVector3 localInertia(0, 0, 0);
 			btConvexHullShape* shape = new btConvexHullShape();
-			for (int i = 0; i < 5; i++) {
+			for (int i = 0; i < 4; i++) {
 				shape->addPoint(tetrahedronVertices[i]);
 			}
 			shape->setLocalScaling(scaleFactor);
@@ -82,13 +83,13 @@ class PhysicsEngineAbstraction {
 		
 		glm::mat4 getUpdatedGLModelMatrix(btRigidBody* rb) {
 			// get the transform of the rigid body representing the cube
-			btTransform cubeTrans;
-			rb->getMotionState()->getWorldTransform(cubeTrans);
+			btTransform rbTrans;
+			rb->getMotionState()->getWorldTransform(rbTrans);
 
 			// update the position of the cube 
 			glm::mat4 model;
 			btScalar matr[16];
-			cubeTrans.getOpenGLMatrix(matr);
+			rbTrans.getOpenGLMatrix(matr);
 			fillMat4(model, matr);
 			return model;
 		}
