@@ -7,25 +7,12 @@
 #include <set>
 #include<algorithm>
 #include "utils.h"
-#include "model.h"
-#include "physicsEngine.h"
-#include "Cube.h"
-
+#include "tetrahedron.h"
 #define GL_VERTICES_PER_TETRA 36
 #define FACETS_PER_TETRA 4
 #define VERTICES_PER_TETRA_FACET 3
 #define UNIQUE_VERTICES_PER_TETRA 4
 
-struct TriangleFacet {
-    std::vector<btVector3> vertices;
-};
-
-struct Tetrahedron {
-    unsigned int VAO;
-    std::set<btVector3> allSingularVertices;
-    std::vector<TriangleFacet> facets;
-    std::vector<float> verticesAsSingleArr;
-};
 
 class VoronoiFracturing {
 
@@ -35,8 +22,6 @@ public:
     std::set<btRigidBody*> tetraRigidbodies;
     std::vector<Tetrahedron> tetrahedrons;
     std::map<btRigidBody*, unsigned int> tetraToVAO;
-    TriangleFacet visibility_walk(std::vector<Tetrahedron> tetras, btVector3 p);
-    std::vector<Tetrahedron> getNeighbours(std::vector<Tetrahedron> allTetras, Tetrahedron t);
     std::map<btRigidBody*, Tetrahedron> rigidbodyToTetra;
 
     VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe) : pe(pe) { //Will have to generalize to other shapes
@@ -59,7 +44,7 @@ public:
         tetraToVAO[tetraRigidbody] = tetra.VAO;
         rigidbodyToTetra[tetraRigidbody] = tetra;
         tetraRigidbodies.insert(tetraRigidbody);
-        pe.dynamicsWorld->addRigidBody(tetraRigidbody,1,1);
+        pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
     };
 
     void insertOnePoint(btVector3 t, btRigidBody* toFlip) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
@@ -96,19 +81,15 @@ public:
             //Each facet will now become part of a separate tetrahedron
             //I need to generate 3 new facets, and together with the initial one it will generate a new tetrahedron
             TriangleFacet facet1 = {
-                &newTetrahedron,
                 { facet.vertices[0], facet.vertices[1], t }
             };
             TriangleFacet facet2 = {
-                &newTetrahedron,
                 { facet.vertices[1], facet.vertices[2], t }
             };
             TriangleFacet facet3 = {
-                &newTetrahedron,
                 { facet.vertices[2], facet.vertices[0], t }
             };
             TriangleFacet facet4 = {
-                &newTetrahedron,
                 { facet.vertices[0], facet.vertices[1], facet.vertices[2]}
             };
 
@@ -153,64 +134,22 @@ public:
     }
 
 
+  
 
 
     //triangles -> tetrahedra
     //edges -> facets
-    TriangleFacet visibility_walk(std::vector<Tetrahedron> tetras, btVector3 p) {
+    Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
         Tetrahedron t = tetras.at(randomIndex_t);
         Tetrahedron previous = t;
         bool end = false;
         TriangleFacet f;
         while (!end) {
-            int randomIndex_f = std::rand() %3; //random index from 0 to 2 - every tetra has 4 fixed facets
-            f = t.facets[randomIndex_f];
-            std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, t);
-            //check if p is inside one of the neighbours
-            bool isPointInNeighbour = false;
-            for (auto neighbour : t_neighbours)
-                if (isPointInsideTetrahedron(neighbour,p))
-                    isPointInNeighbour = true;
-
-            //point is not neighbour of "previous" through facet f
-            if (!(isPointInNeighbour && isPointInsideFacet(f, p))) {
-                //where is the center positioned in space respect to the facet we are considering
-                int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(t));
-                //same thing for point
-                int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-                //if point is not in the same side of center respect to the facet, the two orientations
-                //will have different signs -> negative product
-                if (centerOrientation * pointOrientation < 0) {
-                    previous = t;
-                    t = *f.father;
-                }
-            }
-            //point is neighbour of "previous" through facet f
-            else {
-                f = t.facets[(randomIndex_f + 1)%3];
-                //same process as before
-                if (!(isPointInNeighbour && isPointInsideFacet(f, p))) {
-                    int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(t));
-                    int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-                    if (centerOrientation * pointOrientation < 0) {
-                        previous = t;
-                        t = *f.father;
-                    }
-                }
-                else {
-                    f = t.facets[(randomIndex_f + 2) % 3];
-                    if (!(isPointInNeighbour && isPointInsideFacet(f, p))) {
-                        int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(t));
-                        int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-                        if (centerOrientation * pointOrientation < 0) {
-                            previous = t;
-                            t = *f.father;
-                        }
-                    }
-                }
-            }
+            verifyNeighbours(tetras, f, &previous, &t, p);
         }
+
+        return t;
     }
 
     std::vector<Tetrahedron> getNeighbours(std::vector<Tetrahedron> allTetras, Tetrahedron t) {
@@ -255,6 +194,103 @@ public:
         }
 
         return neighbors;
+    }
+
+    void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p) {
+        int randomIndex_f = std::rand() % 3; //random index from 0 to 2 - every tetra has 4 fixed facets
+        f = t->facets[randomIndex_f];
+        std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t);
+        //check if p is inside one of the neighbours
+        bool isPointInNeighbour = false;
+        Tetrahedron p_tetra;
+        Tetrahedron neighbour_through_f;
+        for (auto t : t_neighbours) {
+            if (isPointInsideTetrahedron(t, p)) {
+                isPointInNeighbour = true;
+                p_tetra = t;
+            }
+            if (isFacetInTetrahedron(p_tetra, f))
+                neighbour_through_f = t;
+        }
+
+        //point p is not neighbour of tetrahedron 
+        if ((!isPointInNeighbour) || (isPointInNeighbour &&
+            //point p is neighbour of tetrahedron, but not through facet f -> f is not in p's tetrahedron
+            !isFacetInTetrahedron(p_tetra, f))) {
+            //where is the center positioned in space respect to the facet we are considering
+            int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
+            //same thing for point
+            int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
+            //if point is not in the same side of center respect to the facet, the two orientations
+            //will have different signs -> negative product
+            if (centerOrientation * pointOrientation < 0) {
+                previous = t;
+                *t = neighbour_through_f;
+            }
+        }
+        //point is neighbour of "previous" through facet f
+        else {
+            f = t->facets[(randomIndex_f + 1) % 3];
+            //same process as before
+            for (auto t : t_neighbours) {
+                if (isPointInsideTetrahedron(t, p)) {
+                    isPointInNeighbour = true;
+                    p_tetra = t;
+                }
+                if (isFacetInTetrahedron(p_tetra, f))
+                    neighbour_through_f = t;
+            }
+            if ((!isPointInNeighbour) || (isPointInNeighbour &&
+                //point p is neighbour of tetrahedron, but not through facet f
+                !isFacetInTetrahedron(p_tetra, f))) {
+                int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
+                int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
+                if (centerOrientation * pointOrientation < 0) {
+                    previous = t;
+                    *t = neighbour_through_f;
+                }
+            }
+            else {
+                f = t->facets[(randomIndex_f + 2) % 3];
+                for (auto t : t_neighbours) {
+                    if (isPointInsideTetrahedron(t, p)) {
+                        isPointInNeighbour = true;
+                        p_tetra = t;
+                    }
+                    if (isFacetInTetrahedron(p_tetra, f))
+                        neighbour_through_f = t;
+                }
+                if ((!isPointInNeighbour) || (isPointInNeighbour &&
+                    //point p is neighbour of tetrahedron, but not through facet f
+                    !isFacetInTetrahedron(p_tetra, f))) {
+                    int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
+                    int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
+                    if (centerOrientation * pointOrientation < 0) {
+                        previous = t;
+                        *t = neighbour_through_f;
+                    }
+                }
+            }
+        }
+    }
+
+    std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices) {
+        std::vector<float> allVerticesAsFloatArr;
+        for (auto& vertice : allVertices) {
+            std::vector<float> vectorComponents = generateVerticesArrayFromVertex(vertice);
+            allVerticesAsFloatArr.insert(allVerticesAsFloatArr.end(), vectorComponents.begin(), vectorComponents.end());
+        }
+        return allVerticesAsFloatArr;
+    }
+
+    void vectorToFloatArray(const std::vector<float>& vec, float arr[]) {
+        for (size_t i = 0; i < vec.size(); i++) {
+            arr[i] = vec[i];
+        }
+    }
+
+    std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
+        return { (float)v.Position.x, (float)v.Position.y, (float)v.Position.z };
     }
 
  
