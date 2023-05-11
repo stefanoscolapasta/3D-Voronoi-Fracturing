@@ -2,7 +2,7 @@
 #include <glm/glm.hpp>
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
-
+#include <set>
 class PhysicsEngineAbstraction {
 	//TODO: HAVE A .HPP for declaration and a .CPP for the methods' IMPLEMENTATION
 	private:
@@ -31,6 +31,7 @@ class PhysicsEngineAbstraction {
 		{
 			this->dynamicsWorld = new btDiscreteDynamicsWorld(this->dispatcher, this->broadphase, this->solver, this->collisionConfiguration);
 			this->dynamicsWorld->setGravity(btVector3(0, -9.81, 0)); // set gravity to -9.81 in the y direction
+			//btCollisionWorld* collisionWorld = new btCollisionWorld(dispatcher, broadphase, solver, collisionConfiguration);
 		}
 
 		btRigidBody* generateCubeRigidbody(btVector3 startingPosition, btVector3 dimensions, btVector3 scaleFactor) {
@@ -49,26 +50,19 @@ class PhysicsEngineAbstraction {
 			return cubeRigidBodyC1;
 		}
 
-		btRigidBody* generateTetrahedronRigidbody(btVector3 startingPosition, btVector3 *tetrahedronVertices,  btVector3 scaleFactor) {
-
+		btRigidBody* generateStaticCubeRigidbody(btVector3 startingPosition, btVector3 dimensions, btVector3 scaleFactor) {
 			btTransform startTransform;
 			startTransform.setIdentity();
 			startTransform.setOrigin(startingPosition);
-			btScalar mass(1.0f);
 			btVector3 localInertia(0, 0, 0);
-			btConvexHullShape* shape = new btConvexHullShape();
-			for (int i = 0; i < 4; i++) {
-				shape->addPoint(tetrahedronVertices[i]);
-			}
+			btCollisionShape* shape = new btBoxShape(dimensions);
 			shape->setLocalScaling(scaleFactor);
-			btDefaultMotionState* tetrahedronMotionState = new btDefaultMotionState(startTransform);
-			shape->calculateLocalInertia(mass, localInertia);
-			btRigidBody::btRigidBodyConstructionInfo rigidBody(mass, tetrahedronMotionState, shape, localInertia);
-			btRigidBody* tetrahedronRigidBody = new btRigidBody(rigidBody);
-			tetrahedronRigidBody->setWorldTransform(startTransform);
-			return tetrahedronRigidBody;
+			btDefaultMotionState* cubeMotionState = new btDefaultMotionState(startTransform);
+			btRigidBody::btRigidBodyConstructionInfo rigidBodyCIC1(0, cubeMotionState, shape, localInertia);
+			btRigidBody* cubeRigidBodyC1 = new btRigidBody(rigidBodyCIC1);
+			cubeRigidBodyC1->setWorldTransform(startTransform);
+			return cubeRigidBodyC1;
 		}
-
 
 		btRigidBody* generateGroundRigidbody(btVector3 startingPosition) {
 			//Remember that it's an infinite plane
@@ -80,6 +74,31 @@ class PhysicsEngineAbstraction {
 			btRigidBody::btRigidBodyConstructionInfo groundRigidBodyCI(0, groundMotionState, groundShape, btVector3(0, 0, 0));
 			return new btRigidBody(groundRigidBodyCI);
 		}
+
+		btRigidBody* generateTetrahedronRigidbody(btVector3 startingPosition, std::set<btVector3> tetrahedronVertices,  btVector3 scaleFactor) {
+
+			btTransform startTransform;
+			startTransform.setIdentity();
+			startTransform.setOrigin(startingPosition);
+			btScalar mass(1.0f);
+			btVector3 localInertia(0, 0, 0);
+			btConvexHullShape* shape = new btConvexHullShape();
+
+			for (auto vertex = tetrahedronVertices.begin(); vertex != tetrahedronVertices.end(); ++vertex) {
+				shape->addPoint(*vertex);
+			}
+
+			shape->setLocalScaling(scaleFactor);
+			btDefaultMotionState* tetrahedronMotionState = new btDefaultMotionState(startTransform);
+			shape->calculateLocalInertia(mass, localInertia);
+			btRigidBody::btRigidBodyConstructionInfo rigidBody(mass, tetrahedronMotionState, shape, localInertia);
+			btRigidBody* tetrahedronRigidBody = new btRigidBody(rigidBody);
+			tetrahedronRigidBody->setWorldTransform(startTransform);
+			return tetrahedronRigidBody;
+		}
+
+
+		
 		
 		glm::mat4 getUpdatedGLModelMatrix(btRigidBody* rb) {
 			// get the transform of the rigid body representing the cube
@@ -93,4 +112,7 @@ class PhysicsEngineAbstraction {
 			fillMat4(model, matr);
 			return model;
 		}
+
+
+
 };
