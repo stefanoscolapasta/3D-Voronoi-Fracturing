@@ -16,29 +16,13 @@
 #include "ground.h"
 #include "model.h"
 #include "physicsEngine.h"
-#include "utils.h"
-#include "Collision.h"
 #include "GeometricAlgorithms.h"
+#include "Collision.h"
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
-void processInput(GLFWwindow* window);
+
 unsigned int generateCubeVAO(float vertices[]);
 
-// settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
 
-// camera
-Camera camera(glm::vec3(0.0f, 0.0f, 15.0f));
-float lastX = SCR_WIDTH / 2.0f;
-float lastY = SCR_HEIGHT / 2.0f;
-bool firstMouse = true;
-
-// timing
-float deltaTime = 0.0f;
-float lastFrame = 0.0f;
 
 int main()
 {
@@ -92,7 +76,7 @@ int main()
     // -----------
 
 
-    Model *tetrahedronForTest = new Model("geom/tetrahedron.obj");
+    Model* tetrahedronForTest = new Model("geom/tetrahedron.obj");
 
     PhysicsEngineAbstraction pe;
     VoronoiFracturing vorFrac(tetrahedronForTest, pe);
@@ -114,10 +98,11 @@ int main()
 
     while (!glfwWindowShouldClose(window))
     {
-        
+
         //Calculate deltatime
         float currentFrame = glfwGetTime();
         setFrame(currentFrame - getLastFrame(), currentFrame);
+
         // input
         // -----
         processInput(window);
@@ -137,18 +122,18 @@ int main()
         // camera/view transformation
         glm::mat4 view = getCamera().GetViewMatrix();
         ourShader.setMat4("view", view);
+
         // UPDATE SIMULATION
+
         pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
-        
-        // UPDATE SIMULATION
-        
+
         //Here I check for  collision, if collision happened I generate a point linearly interpolating the contact point and the centroid
         //This point will be used to generate new tetras and give effect of breaking
         //pe.dynamicsWorld->contactPairTest()
 
         //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
         for (auto& tetraRigidbody : vorFrac.tetraRigidbodies) {
-            
+
             pe.dynamicsWorld->contactPairTest(tetraRigidbody, cubeTerrainRigidbody, collisionResult); //Check collision with ground use contactTest to check will all rigidbodies
 
             if (collisionResult.m_closestDistanceThreshold > 0) {
@@ -180,3 +165,24 @@ int main()
     glfwTerminate();
     return 0;
 }
+
+
+
+unsigned int generateCubeVAO(float vertices[]) {
+    unsigned int cubeVBO, cubeVAO;
+    glGenVertexArrays(1, &cubeVAO);
+    glGenBuffers(1, &cubeVBO);
+
+    glBindVertexArray(cubeVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // color attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    return cubeVAO;
+}
+

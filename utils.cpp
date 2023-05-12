@@ -194,29 +194,28 @@ btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
 }
 
 
-//bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P) {
-//    glm::vec3 center = getSphereCenter(//vertices of tetra 
-//    );
-//
-//    //vertices conversion
-//    //struttura dati provvisoria
-//    glm::vec3 P1 = convertToVec3(tetrahedron.vertices[0]);
-//    glm::vec3 P2 = convertToVec3(tetrahedron.vertices[1]);
-//    glm::vec3 P3 = convertToVec3(tetrahedron.vertices[2]);
-//    glm::vec3 P4 = convertToVec3(tetrahedron.vertices[3]);
-//
-//
-//    glm::vec3 point = convertToVec3(P);
-//    float radius = glm::length(center - P1);
-//    radius = glm::max(radius, glm::length(center - P2));
-//    radius = glm::max(radius, glm::length(center - P3));
-//    radius = glm::max(radius, glm::length(center - P4));
-//    float distance = glm::distance(point, center);
-//
-//    float distance = glm::distance(point, center);
-//    bool isInside = distance <= radius;
-//    return isInside;
-//}
+bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 p) {
+    btVector3 center_bt = getSphereCenter(tetrahedron.allSingularVertices);
+    glm::vec3 center = convertToVec3(center_bt);
+    std::vector<glm::vec3> tetra_vertices;
+    //vertices conversion
+    int i = 0;
+    for (std::set<btVector3>::iterator v = tetrahedron.allSingularVertices.begin();
+        v != tetrahedron.allSingularVertices.end(); v++) {
+        btVector3 vertex = *v;
+        tetra_vertices[i] = convertToVec3(vertex);
+        i++;
+    }
+
+    glm::vec3 point = convertToVec3(p);
+    float radius = glm::length(center - tetra_vertices[0]);
+    radius = glm::max(radius, glm::length(center - tetra_vertices[1]));
+    radius = glm::max(radius, glm::length(center - tetra_vertices[2]));
+    radius = glm::max(radius, glm::length(center - tetra_vertices[3]));
+    float distance = glm::distance(point, center);
+    bool isInside = distance <= radius;
+    return isInside;
+}
 
 bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point) {
     // Iterate over each face of the tetrahedron

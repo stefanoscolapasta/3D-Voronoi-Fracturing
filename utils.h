@@ -36,7 +36,7 @@ int orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p);
 float determinantOfMatrix(float matrix[N][N], int n);
 void subMatrix(float mat[N][N], float temp[N][N], int p, int q, int n);
 btVector3 getTetrahedronCenter(Tetrahedron tetrahedron);
-//bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P);
+bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P);
 
 
 //TETRAS

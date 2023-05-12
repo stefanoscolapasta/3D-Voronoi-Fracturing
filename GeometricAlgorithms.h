@@ -70,6 +70,7 @@ public:
             tetraRigidbodies.insert(tetraRigidbody);
             pe.dynamicsWorld->addRigidBody(tetraRigidbody,1,1);
         }
+
     }
 
     std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron) {
