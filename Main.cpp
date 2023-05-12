@@ -9,35 +9,24 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
+#include <iostream>
 #include "cube.h"
 #include "shader.h"
 #include "camera.h"
 #include "ground.h"
 #include "model.h"
 #include "physicsEngine.h"
-#include <iostream>
+#include "GeometricAlgorithms.h"
+#include "Collision.h"
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
-void processInput(GLFWwindow* window);
 
-// settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+unsigned int generateCubeVAO(float vertices[]);
 
-// camera
-Camera camera(glm::vec3(0.0f, 0.0f, 15.0f));
-float lastX = SCR_WIDTH / 2.0f;
-float lastY = SCR_HEIGHT / 2.0f;
-bool firstMouse = true;
 
-// timing
-float deltaTime = 0.0f;
-float lastFrame = 0.0f;
 
 int main()
 {
+    int i, j;
     // glfw: initialize and configure
     // ------------------------------
     glfwInit();
@@ -85,39 +74,34 @@ int main()
 
     // load models
     // -----------
-    Model ourModel("cube/cube.obj"); 
 
 
-    unsigned int groundVBO, groundVAO;
-    glGenVertexArrays(1, &groundVAO);
-    glGenBuffers(1, &groundVBO);
-
-    glBindVertexArray(groundVAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, groundVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(groundVertices), groundVertices, GL_STATIC_DRAW);
-    // position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    // color attribute
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(3);
-
+    Model* tetrahedronForTest = new Model("geom/tetrahedron.obj");
 
     PhysicsEngineAbstraction pe;
+    VoronoiFracturing vorFrac(tetrahedronForTest, pe);
+    //REMINDER: btCollisionObject is parentClass of btRigidBody
+    //MAKE FUNCTION FOR THIS
+    unsigned int cubeVAO = generateCubeVAO(cubeVertices);
 
-    btRigidBody* cubeRigidBody = pe.generateCubeRigidbody(cubePositions[0], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
-    btRigidBody* groundRigidBody = pe.generateGroundRigidbody(groundPositions[0]);
+    //btRigidBody* cubeRigidBody = pe.generateCubeRigidbody(cubePositions[0], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
+    //btRigidBody* groundRigidBody = pe.generateGroundRigidbody(groundPositions[0]);
+    btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
     // add the ground rigid body to the physics world
-    pe.dynamicsWorld->addRigidBody(cubeRigidBody);
-    pe.dynamicsWorld->addRigidBody(groundRigidBody);
+    pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
+    //pe.dynamicsWorld->addRigidBody(groundRigidBody,1,1);
+
+    //I added the centroid (kinda)
+    vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), *(vorFrac.tetraRigidbodies.begin())); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+    //Callback to use when checking collisions
+    MyContactResultCallback collisionResult;
 
     while (!glfwWindowShouldClose(window))
     {
+
         //Calculate deltatime
         float currentFrame = glfwGetTime();
-        deltaTime = currentFrame - lastFrame;
-        lastFrame = currentFrame;
+        setFrame(currentFrame - getLastFrame(), currentFrame);
 
         // input
         // -----
@@ -131,37 +115,50 @@ int main()
         // activate shader
         ourShader.use();
 
-
         // pass projection matrix to shader (note that in this case it could change every frame)
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(getCamera().Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         ourShader.setMat4("projection", projection);
 
         // camera/view transformation
-        glm::mat4 view = camera.GetViewMatrix();
+        glm::mat4 view = getCamera().GetViewMatrix();
         ourShader.setMat4("view", view);
 
         // UPDATE SIMULATION
-        pe.dynamicsWorld->stepSimulation(deltaTime, 10);
 
-        // Draw the debug lines
-        pe.dynamicsWorld->debugDrawWorld();
+        pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
 
-        ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
-        ourModel.Draw(ourShader);
+        //Here I check for  collision, if collision happened I generate a point linearly interpolating the contact point and the centroid
+        //This point will be used to generate new tetras and give effect of breaking
+        //pe.dynamicsWorld->contactPairTest()
 
-        glBindVertexArray(groundVAO);
-        ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(groundRigidBody));
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
+        for (auto& tetraRigidbody : vorFrac.tetraRigidbodies) {
 
+            pe.dynamicsWorld->contactPairTest(tetraRigidbody, cubeTerrainRigidbody, collisionResult); //Check collision with ground use contactTest to check will all rigidbodies
+
+            if (collisionResult.m_closestDistanceThreshold > 0) {
+                std::cout << "Collision with ground"; //Does not work ffs
+            }
+
+            glBindVertexArray(vorFrac.tetraToVAO[tetraRigidbody]);
+            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetraRigidbody));
+            //Here we need the VAO for each tetrahedron as their shape is not always the same
+            // 
+            glDrawArrays(GL_LINE_STRIP, 0, 36);
+            //tetrahedronForTest->Draw(ourShader);
+        }
+        glBindVertexArray(cubeVAO);
+        glm::mat4 model = pe.getUpdatedGLModelMatrix(cubeTerrainRigidbody);
+        model = glm::scale(model, glm::vec3(10.0f, 1.0f, 10.0f));
+        ourShader.setMat4("model", model);
+        glDrawArrays(GL_LINE_STRIP, 0, 36);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    glDeleteVertexArrays(1, &groundVAO);
-    glDeleteBuffers(1, &groundVBO);
-
+    glDeleteVertexArrays(1, &cubeVAO);
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
@@ -169,58 +166,23 @@ int main()
     return 0;
 }
 
-// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-// ---------------------------------------------------------------------------------------------------------
-void processInput(GLFWwindow* window)
-{
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
 
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.ProcessKeyboard(FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.ProcessKeyboard(BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.ProcessKeyboard(LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.ProcessKeyboard(RIGHT, deltaTime);
+
+unsigned int generateCubeVAO(float vertices[]) {
+    unsigned int cubeVBO, cubeVAO;
+    glGenVertexArrays(1, &cubeVAO);
+    glGenBuffers(1, &cubeVBO);
+
+    glBindVertexArray(cubeVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // color attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    return cubeVAO;
 }
 
-// glfw: whenever the window size changed (by OS or user resize) this callback function executes
-// ---------------------------------------------------------------------------------------------
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    // make sure the viewport matches the new window dimensions; note that width and 
-    // height will be significantly larger than specified on retina displays.
-    glViewport(0, 0, width, height);
-}
-
-// glfw: whenever the mouse moves, this callback is called
-// -------------------------------------------------------
-void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
-{
-    float xpos = static_cast<float>(xposIn);
-    float ypos = static_cast<float>(yposIn);
-
-    if (firstMouse)
-    {
-        lastX = xpos;
-        lastY = ypos;
-        firstMouse = false;
-    }
-
-    float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
-
-    lastX = xpos;
-    lastY = ypos;
-
-    camera.ProcessMouseMovement(xoffset, yoffset);
-}
-
-// glfw: whenever the mouse scroll wheel scrolls, this callback is called
-// ----------------------------------------------------------------------
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
-{
-    camera.ProcessMouseScroll(static_cast<float>(yoffset));
-}
