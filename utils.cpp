@@ -1,4 +1,5 @@
 #include"utils.h"
+
 //OPENGL UTILS
 
 // timing
@@ -92,8 +93,11 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 
 
 //MATHS
-
-int Orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p) {
+//determines if a point p is over, under or lies on a plane defined by three points a, b and c
+//>0 -> p is above the plane defined by a, b,c
+//<0 -> p is under the plane defined by a, b,c
+// = 0-> p is on the plane defined by a, b,c
+int orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p) {
     float mat[N][N] = {
         a.getX(), a.getY(), a.getZ(), 1,
         b.getX(), b.getY(), b.getZ(), 1,
@@ -147,19 +151,134 @@ glm::vec3 convertToVec3(btVector3 vec) {
     return vector;
 }
 
-btVector3 getSphereCenter(btVector3 p1, btVector3 p2, btVector3 p3, btVector3 p4) {
-    glm::vec3 P1 = convertToVec3(p1);
-    glm::vec3 P2 = convertToVec3(p2);
-    glm::vec3 P3 = convertToVec3(p3);
-    glm::vec3 P4 = convertToVec3(p4);
+btVector3 getSphereCenter(std::set<btVector3> points) {
+    // Convert set to vector for easier access to points
+    std::vector<btVector3> p(points.begin(), points.end());
 
-    glm::vec3 midpoint1 = 0.5f * (P1 + P2);
-    glm::vec3 midpoint2 = 0.5f * (P3 + P4);
-    glm::vec3 normal1 = glm::normalize(glm::cross(P2 - P1, midpoint1 - P1));
-    glm::vec3 normal2 = glm::normalize(glm::cross(P4 - P3, midpoint2 - P3));
-    glm::vec3 sphereCenter = intersection(normal1, midpoint1, normal2, midpoint2);
+    // Find midpoints of two line segments
+    btVector3 midpoint1 = (p[0] + p[1]) / 2.0;
+    btVector3 midpoint2 = (p[1] + p[2]) / 2.0;
 
-    return btVector3(sphereCenter.x, sphereCenter.y, sphereCenter.z);
+    // Find direction vectors of line segments
+    btVector3 direction1 = p[1] - p[0];
+    btVector3 direction2 = p[2] - p[1];
+
+    // Find normal vectors of perpendicular bisectors
+    btVector3 normal1 = direction1.cross(btVector3(0, 1, 0)).normalized();
+    btVector3 normal2 = direction2.cross(btVector3(0, 1, 0)).normalized();
+
+    // Find distance from midpoints to intersection of perpendicular bisectors
+    float d1 = midpoint1.dot(normal1);
+    float d2 = midpoint2.dot(normal2);
+
+    // Find intersection point of perpendicular bisectors
+    btVector3 center = ((d1 * normal2) - (d2 * normal1)).cross(normal1.cross(normal2)).normalized();
+
+    // Find radius of sphere
+    float radius = (center - p[0]).length();
+
+    // Return center of sphere
+    return center;
+}
+
+btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
+    btVector3 center(0, 0, 0);
+
+    // Calculate the average of the four vertices
+    for (auto& v : tetrahedron.allSingularVertices) {
+        center += v;
+    }
+    center /= 4.0;
+
+    return center;
+}
+
+
+bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 p) {
+    btVector3 center_bt = getSphereCenter(tetrahedron.allSingularVertices);
+    glm::vec3 center = convertToVec3(center_bt);
+    std::vector<glm::vec3> tetra_vertices;
+    //vertices conversion
+    int i = 0;
+    for (std::set<btVector3>::iterator v = tetrahedron.allSingularVertices.begin();
+        v != tetrahedron.allSingularVertices.end(); v++) {
+        btVector3 vertex = *v;
+        tetra_vertices[i] = convertToVec3(vertex);
+        i++;
+    }
+
+    glm::vec3 point = convertToVec3(p);
+    float radius = glm::length(center - tetra_vertices[0]);
+    radius = glm::max(radius, glm::length(center - tetra_vertices[1]));
+    radius = glm::max(radius, glm::length(center - tetra_vertices[2]));
+    radius = glm::max(radius, glm::length(center - tetra_vertices[3]));
+    float distance = glm::distance(point, center);
+    bool isInside = distance <= radius;
+    return isInside;
+}
+
+bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point) {
+    // Iterate over each face of the tetrahedron
+    for (auto& facet : tetrahedron.facets) {
+        // Get the three vertices of the face
+        const btVector3& v0 = facet.vertices[0];
+        const btVector3& v1 = facet.vertices[1];
+        const btVector3& v2 = facet.vertices[2];
+
+        // Calculate the normal vector of the face
+        btVector3 normal = (v1 - v0).cross(v2 - v0).normalized();
+
+        // Calculate the distance from the origin to the face
+        float distance = -v0.dot(normal);
+
+        // Calculate the distance from the point to the plane defined by the face
+        float pointDistance = point.dot(normal) + distance;
+
+        // If the point is on the opposite side of the plane from the tetrahedron, it is outside
+        if (pointDistance < 0) {
+            return false;
+        }
+    }
+
+    // If the point is on the same side of all four faces, it is inside
+    return true;
+}
+
+bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f) {
+    for (const auto& tf : t.facets) {
+        if (areTriangleFacetsEqual(tf, f)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool areTetrasEqual(Tetrahedron t1, Tetrahedron t2) {
+
+    // Compare the vertices of each facet
+    for (int i = 0; i < t1.facets.size(); i++) {
+        TriangleFacet& f1 = t1.facets[i];
+        TriangleFacet& f2 = t2.facets[i];
+
+        for (int j = 0; j < f1.vertices.size(); j++) {
+            if (f1.vertices[j] != f2.vertices[j]) {
+                return false;
+            }
+        }
+    }
+}
+
+
+bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2) {
+    // Check if each vertex is equal
+    for (int i = 0; i < f1.vertices.size(); i++) {
+        if (f1.vertices[i] != f2.vertices[i]) {
+            return false;
+        }
+    }
+
+    // The facets are equal
+    return true;
 }
 
 glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, glm::vec3 point2) {

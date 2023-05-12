@@ -4,16 +4,25 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
+#include <iostream>
 #include "cube.h"
 #include "shader.h"
+#include "camera.h"
 #include "ground.h"
 #include "model.h"
 #include "physicsEngine.h"
-#include <iostream>
-#include "utils.h"
+#include "GeometricAlgorithms.h"
+#include "Collision.h"
+
+
+unsigned int generateCubeVAO(float vertices[]);
+
+
 
 int main()
 {
@@ -31,7 +40,7 @@ int main()
 
     // glfw window creation
     // --------------------
-    GLFWwindow* window = createWindow();
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -66,84 +75,33 @@ int main()
     // load models
     // -----------
 
-    const int numTetrahedrons = 6;
-    Model *tetraModels[numTetrahedrons];
-    for (i = 0; i < numTetrahedrons; i++) {
-        string path = "tetra/tetra" + std::to_string(i) +".obj";
-        tetraModels[i] = new Model(path);
-    }
-  
-    
 
-    unsigned int groundVBO, groundVAO;
-    glGenVertexArrays(1, &groundVAO);
-    glGenBuffers(1, &groundVBO);
-
-    glBindVertexArray(groundVAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, groundVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(groundVertices), groundVertices, GL_STATIC_DRAW);
-    // position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    // color attribute
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(3);
-
+    Model* tetrahedronForTest = new Model("geom/tetrahedron.obj");
 
     PhysicsEngineAbstraction pe;
+    VoronoiFracturing vorFrac(tetrahedronForTest, pe);
+    //REMINDER: btCollisionObject is parentClass of btRigidBody
+    //MAKE FUNCTION FOR THIS
+    unsigned int cubeVAO = generateCubeVAO(cubeVertices);
 
     //btRigidBody* cubeRigidBody = pe.generateCubeRigidbody(cubePositions[0], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
-    btRigidBody* groundRigidBody = pe.generateGroundRigidbody(groundPositions[0]);
+    //btRigidBody* groundRigidBody = pe.generateGroundRigidbody(groundPositions[0]);
+    btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
     // add the ground rigid body to the physics world
-    //pe.dynamicsWorld->addRigidBody(cubeRigidBody);
-    pe.dynamicsWorld->addRigidBody(groundRigidBody);
+    pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
+    //pe.dynamicsWorld->addRigidBody(groundRigidBody,1,1);
 
-
-    // Generate tetrahedrons ...
-
-    btRigidBody* tetrahedronRigidBodies[numTetrahedrons];
-    btVector3 tetrahedronVertices[numTetrahedrons][5];
-
-    for (i = 0; i < numTetrahedrons; i++) {
-       
-        int index = 0;
-        for (j = 0; j < tetraModels[i]->meshes[0].vertices.size(); j++) {
-            btVector3 newPoint = btVector3(tetraModels[i]->meshes[0].vertices[j].Position.x,
-                tetraModels[i]->meshes[0].vertices[j].Position.y,
-                tetraModels[i]->meshes[0].vertices[j].Position.z);
-            bool already_exists = false;
-            
-            for (int k = 0; k < j; k++) {
-                if (newPoint == tetrahedronVertices[i][k]) {
-                    already_exists = true;
-                    break;
-                }
-            }
-            if (!already_exists) {
-                tetrahedronVertices[i][index] = newPoint;
-                index++;
-            }
-        }
-       btRigidBody* tetrahedronRigidBody = pe.generateTetrahedronRigidbody(
-            cubePositions[0], // Use cube position as starting position
-           tetrahedronVertices[i],
-           btVector3(1.0f,1.0f,1.0f)
-        );
-        tetrahedronRigidBodies[i] = tetrahedronRigidBody;
-        pe.dynamicsWorld->addRigidBody(tetrahedronRigidBodies[i]);
-        
-
-    }
-
-
-
+    //I added the centroid (kinda)
+    vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), *(vorFrac.tetraRigidbodies.begin())); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+    //Callback to use when checking collisions
+    MyContactResultCallback collisionResult;
 
     while (!glfwWindowShouldClose(window))
     {
+
         //Calculate deltatime
         float currentFrame = glfwGetTime();
-        setFrame( currentFrame - getLastFrame(),currentFrame) ;
+        setFrame(currentFrame - getLastFrame(), currentFrame);
 
         // input
         // -----
@@ -166,35 +124,65 @@ int main()
         ourShader.setMat4("view", view);
 
         // UPDATE SIMULATION
+
         pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
 
-        //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
-        for (i = 0; i < numTetrahedrons; i++){
-            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetrahedronRigidBodies[i]));
-            tetraModels[i]->Draw(ourShader);
-        }
-        
-        
-        
-        glBindVertexArray(groundVAO);
-        ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(groundRigidBody));
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        //Here I check for  collision, if collision happened I generate a point linearly interpolating the contact point and the centroid
+        //This point will be used to generate new tetras and give effect of breaking
+        //pe.dynamicsWorld->contactPairTest()
 
+        //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
+        for (auto& tetraRigidbody : vorFrac.tetraRigidbodies) {
+
+            pe.dynamicsWorld->contactPairTest(tetraRigidbody, cubeTerrainRigidbody, collisionResult); //Check collision with ground use contactTest to check will all rigidbodies
+
+            if (collisionResult.m_closestDistanceThreshold > 0) {
+                std::cout << "Collision with ground"; //Does not work ffs
+            }
+
+            glBindVertexArray(vorFrac.tetraToVAO[tetraRigidbody]);
+            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetraRigidbody));
+            //Here we need the VAO for each tetrahedron as their shape is not always the same
+            // 
+            glDrawArrays(GL_LINE_STRIP, 0, 36);
+            //tetrahedronForTest->Draw(ourShader);
+        }
+        glBindVertexArray(cubeVAO);
+        glm::mat4 model = pe.getUpdatedGLModelMatrix(cubeTerrainRigidbody);
+        model = glm::scale(model, glm::vec3(10.0f, 1.0f, 10.0f));
+        ourShader.setMat4("model", model);
+        glDrawArrays(GL_LINE_STRIP, 0, 36);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    glDeleteVertexArrays(1, &groundVAO);
-    glDeleteBuffers(1, &groundVBO);
-
+    glDeleteVertexArrays(1, &cubeVAO);
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
     glfwTerminate();
-
-
     return 0;
+}
+
+
+
+unsigned int generateCubeVAO(float vertices[]) {
+    unsigned int cubeVBO, cubeVAO;
+    glGenVertexArrays(1, &cubeVAO);
+    glGenBuffers(1, &cubeVBO);
+
+    glBindVertexArray(cubeVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // color attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    return cubeVAO;
 }
 
