@@ -4,6 +4,7 @@
 #include <set>
 
 struct VoronoiFacet {
+	std::vector<VoronoiEdge> edges;
 	std::vector<btVector3> vertices;
 };
 struct VoronoiEdge {
@@ -13,6 +14,5 @@ struct VoronoiEdge {
 
 struct VoronoiMesh {
 	std::set<btVector3> allSingularVertices;
-	std::vector<VoronoiEdge> edges;
 	std::vector<VoronoiFacet> facets;
 };
