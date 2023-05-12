@@ -281,6 +281,19 @@ bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2) {
     return true;
 }
 
+TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2) {
+    for (auto f1 : t1.facets) {
+        for (auto f2 : t2.facets) {
+            if (areTriangleFacetsEqual(f1,f2)) {
+                // The facets match, so return f1
+                return f1;
+            }
+        }
+    }
+
+}
+
+
 glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, glm::vec3 point2) {
     glm::vec3 dir = glm::normalize(glm::cross(normal1, normal2));
     float d1 = glm::dot(normal1, point1);

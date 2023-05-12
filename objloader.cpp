@@ -2,7 +2,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
->>>>>>> ef892a34e12cf3fdd777e0a265607ca6f85cce13
 #include <vector>
 #include<glm/glm.hpp>
 #include <string>

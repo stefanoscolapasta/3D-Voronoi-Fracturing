@@ -44,4 +44,5 @@ bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f);
 bool areTetrasEqual(Tetrahedron t1, Tetrahedron t2);
 bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2);
 bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point);
+TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2);
 #endif

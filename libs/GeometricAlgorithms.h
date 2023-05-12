@@ -6,8 +6,15 @@
 #include <algorithm>
 #include <set>
 #include<algorithm>
+#include <map>
 #include "utils.h"
 #include "tetrahedron.h"
+#include "mesh.h"
+#include "voronoi.h"
+#include"model.h"
+#include "physicsEngine.h"
+#include "Cube.h"
+
 #define GL_VERTICES_PER_TETRA 36
 #define FACETS_PER_TETRA 4
 #define VERTICES_PER_TETRA_FACET 3
@@ -273,6 +280,27 @@ public:
                 }
             }
         }
+    }
+
+    std::vector<btVector3> convertToVoronoi(std::vector<Tetrahedron> tetras) {
+        std::vector<VoronoiEdge> edges;
+        std::map<Tetrahedron, btVector3> tetraVertexEq;
+        for (Tetrahedron t : tetras) {
+            std::set<btVector3> points = t.allSingularVertices;
+            btVector3 voronoiVertex = getSphereCenter(points);
+            tetraVertexEq.insert({ t, voronoiVertex });
+        }
+
+        for (Tetrahedron t : tetras) {
+            std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, t);
+            for (Tetrahedron neighbour : t_neighbours) {
+                TriangleFacet sharedFacet = findSharedFacet(t, neighbour);
+                VoronoiEdge edge = { tetraVertexEq.at(t),  tetraVertexEq.at(neighbour) };
+
+            }
+        }
+
+
     }
 
     std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices) {
