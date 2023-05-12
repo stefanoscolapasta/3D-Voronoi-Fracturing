@@ -24,8 +24,8 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow* window);
 unsigned int generateCubeVAO(float vertices[]);
-
-// settings
+bool checkForCollisionBetweenRbsAB(PhysicsEngineAbstraction pe, btRigidBody* rigidbodyToCheckA, btRigidBody* rigidbodyToCheckB);
+    // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
@@ -105,9 +105,8 @@ int main()
     // add the ground rigid body to the physics world
     pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
     //pe.dynamicsWorld->addRigidBody(groundRigidBody,1,1);
-
+    btRigidBody* initialTetra = *(vorFrac.tetraRigidbodies.begin());
     //I added the centroid (kinda)
-    vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), *(vorFrac.tetraRigidbodies.begin())); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
     //Callback to use when checking collisions
     MyContactResultCallback collisionResult;
 
@@ -146,28 +145,24 @@ int main()
         //Here I check for  collision, if collision happened I generate a point linearly interpolating the contact point and the centroid
         //This point will be used to generate new tetras and give effect of breaking
         //pe.dynamicsWorld->contactPairTest()
-
+        if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) { 
+            vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), initialTetra, initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+        }
         //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
         for (auto& tetraRigidbody : vorFrac.tetraRigidbodies) {
-            
-            pe.dynamicsWorld->contactPairTest(tetraRigidbody, cubeTerrainRigidbody, collisionResult); //Check collision with ground use contactTest to check will all rigidbodies
-
-            if (collisionResult.m_closestDistanceThreshold > 0) {
-                std::cout << "Collision with ground"; //Does not work ffs
-            }
 
             glBindVertexArray(vorFrac.tetraToVAO[tetraRigidbody]);
             ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetraRigidbody));
             //Here we need the VAO for each tetrahedron as their shape is not always the same
             // 
-            glDrawArrays(GL_LINE_STRIP, 0, 36);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
             //tetrahedronForTest->Draw(ourShader);
         }
         glBindVertexArray(cubeVAO);
         glm::mat4 model = pe.getUpdatedGLModelMatrix(cubeTerrainRigidbody);
         model = glm::scale(model, glm::vec3(10.0f, 1.0f, 10.0f));
         ourShader.setMat4("model", model);
-        glDrawArrays(GL_LINE_STRIP, 0, 36);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);
@@ -180,6 +175,24 @@ int main()
     // ------------------------------------------------------------------
     glfwTerminate();
     return 0;
+}
+
+bool checkForCollisionBetweenRbsAB(PhysicsEngineAbstraction pe, btRigidBody* rigidbodyToCheckA, btRigidBody* rigidbodyToCheckB) {
+    int numManifolds = pe.dynamicsWorld->getDispatcher()->getNumManifolds();
+    for (int i = 0; i < numManifolds; i++)
+    {
+        btPersistentManifold* contactManifold = pe.dynamicsWorld->getDispatcher()->getManifoldByIndexInternal(i);
+        const btCollisionObject* obA = contactManifold->getBody0();
+        const btCollisionObject* obB = contactManifold->getBody1();
+        const btRigidBody* rbA = btRigidBody::upcast(obA);
+        const btRigidBody* rbB = btRigidBody::upcast(obB);
+        if ((rbA == rigidbodyToCheckA && rbB == rigidbodyToCheckB) || (rbB == rigidbodyToCheckA && rbA == rigidbodyToCheckB)) {
+            //contactManifold->getBody0()->getWorldTransform().getOrigin();
+            return true;
+        }
+        //... here you can check for obA´s and obB´s user pointer again to see if the collision is alien and bullet and in that case initiate deletion.
+    }
+    return false;
 }
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
@@ -208,12 +221,12 @@ unsigned int generateCubeVAO(float vertices[]) {
 
     glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0); 
     // color attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    
     return cubeVAO;
 }
 
