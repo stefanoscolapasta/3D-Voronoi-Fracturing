@@ -282,52 +282,138 @@ public:
         }
     }
 
-    std::vector<btVector3> convertToVoronoi(std::vector<Tetrahedron> tetras) {
+    std::vector<VoronoiMesh> convertToVoronoi(std::vector<Tetrahedron> tetras) {
+        std::vector<VoronoiMesh> VoronoiMeshes;
+        //Vor vertex - Del tetra equivalence
         std::vector<VoronoiEdge> edges;
-        std::map<Tetrahedron, btVector3> tetraVertexEq;
+        //mapping each Delauney tetrahedron with its corresponding Voronoi vertex 
+        std::map<Tetrahedron,btVector3 > tetraVertexEq;
+        //mapping each Voronoi edge with its corresponding Delaunay facet (easier to perform algorithm with this structure)
+        std::map<VoronoiEdge, TriangleFacet> edgeFacetEq;
+        //Vor edges going out from Vor vertex
+        std::map<btVector3, std::vector<VoronoiEdge>> edgesFromVorVertex;
         for (Tetrahedron t : tetras) {
             std::set<btVector3> points = t.allSingularVertices;
             btVector3 voronoiVertex = getSphereCenter(points);
             tetraVertexEq.insert({ t, voronoiVertex });
         }
 
+        //Vor edge - Del face equivalence
         for (Tetrahedron t : tetras) {
             std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, t);
             for (Tetrahedron neighbour : t_neighbours) {
+                //facet shared by the ajacent tetrahedra
                 TriangleFacet sharedFacet = findSharedFacet(t, neighbour);
-                VoronoiEdge edge = { tetraVertexEq.at(t),  tetraVertexEq.at(neighbour) };
+                btVector3 v_t = tetraVertexEq.at(t);
+                btVector3 v_neighbour = tetraVertexEq.at(neighbour);
+                //each edge corresponds to a shared facet
+                //the vertices that form the edge are the Voronoi vertices mapped to the two neighbours
+                VoronoiEdge edge = { v_t, v_neighbour };
+                edgeFacetEq.insert({ edge,sharedFacet });
 
+
+                //CREATE FUNCTION FOR THIS
+                //add outgoing edge 
+                if (edgesFromVorVertex.find(v_t) == edgesFromVorVertex.end()) {
+                    std::vector<VoronoiEdge> incident_edges;
+                    incident_edges.push_back(edge);
+                    edgesFromVorVertex.insert({ v_t, incident_edges });
+                }
+                else {
+                    edgesFromVorVertex.at(v_t).push_back(edge);
+                }
+                if (edgesFromVorVertex.find(v_neighbour) == edgesFromVorVertex.end()) {
+                    std::vector<VoronoiEdge> incident_edges;
+                    incident_edges.push_back(edge);
+                    edgesFromVorVertex.insert({ v_neighbour, incident_edges });
+                }
+                else {
+                    edgesFromVorVertex.at(v_neighbour).push_back(edge);
+                }
+               
+            }
+        }
+
+        //Del edge - Vor face equivalence
+        std::set<std::pair<btVector3, btVector3>> visitedEdges;
+        std::map< std::pair<btVector3, btVector3>, VoronoiFacet> delEdgeToVorFacet;
+        for (Tetrahedron t : tetras) {
+            for (TriangleFacet facet : t.facets) {
+                //iterate through Del edges
+                for (int i = 0; i < facet.vertices.size() - 1; ++i) {
+                    for (int j = i + 1; j < facet.vertices.size(); ++j) {
+                        const btVector3& v1 = facet.vertices[i];
+                        const btVector3& v2 = facet.vertices[j];
+                        std::pair<btVector3, btVector3> edge = v1.x() < v2.x() ? std::make_pair(v1, v2) : std::make_pair(v2, v1);
+                        
+
+                        if (visitedEdges.find(edge) == visitedEdges.end()) {
+                            visitedEdges.insert(edge);
+                           
+                            std::vector<Tetrahedron> incidentTetras = getTetrasIncidentToEdge(edge.first, edge.second, tetras);
+                            std::vector<btVector3> vorFacetVertices;
+                            for (Tetrahedron incident_tetra : incidentTetras) {
+                                vorFacetVertices.push_back(tetraVertexEq.at(incident_tetra));
+                            }
+
+                            //connect the vertices that form the voronoi facet 
+                            std::vector<VoronoiEdge> vorFacetEdges;
+                            for (btVector3 vorVertex : vorFacetVertices) {
+                                for (VoronoiEdge e : edgesFromVorVertex.at(vorVertex)) {
+                                    //one of the two vertices of the edge is vorVertex (one of the vertices of the face)
+                                    //the other vertex in the edge is also contained in the facet -> the edge belongs to this facet
+                                    if ((e.v1 == vorVertex && std::find(std::begin(vorFacetVertices), std::end(vorFacetVertices), e.v2) != std::end(vorFacetVertices))
+                                        || (e.v2 == vorVertex && std::find(std::begin(vorFacetVertices), std::end(vorFacetVertices), e.v1) != std::end(vorFacetVertices)))
+                                        vorFacetEdges.push_back(e);
+                                }
+                            }
+
+                            //a Voronoi face, which is dual to a Delaunay edge
+                            //e, is formed by all the vertices that are dual to
+                            //the Delaunay tetrahedra incident to e.
+                            VoronoiFacet facet = {
+                                vorFacetEdges,
+                                vorFacetVertices
+                            };
+                            //delauney edge to voronoi facet equivalence - needed to build the voronoi mesh
+                            delEdgeToVorFacet.insert({ edge, facet });
+                        }
+                        
+                    }
+                }
             }
         }
 
 
-    }
+        //Del vertex - Vor mesh equivalence
+        //first identifying all the edges incident to p, and then extracting the dual face of each edge.
+        for (Tetrahedron t : tetras) {
+            std::set<btVector3> vertices = t.allSingularVertices;
+            for (btVector3 vertex : vertices) {
+                std::vector<VoronoiFacet> meshFacets;
+                std::vector<btVector3> meshVertices;
+                std::vector<std::pair<btVector3, btVector3>> incidentEdges = findIncidentEdges(tetras, vertex);
+                for (auto edge : incidentEdges) {
+                    VoronoiFacet equivalentFacet = delEdgeToVorFacet.at(edge);
+                    meshFacets.push_back(equivalentFacet);
+                    meshVertices.insert(meshVertices.end(), equivalentFacet.vertices.begin(), equivalentFacet.vertices.end());
+                }
+                VoronoiMesh mesh = {
+                    convertToSet(meshVertices),
+                    meshFacets
+                };
+                VoronoiMeshes.push_back(mesh);
 
-    std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices) {
-        std::vector<float> allVerticesAsFloatArr;
-        for (auto& vertice : allVertices) {
-            std::vector<float> vectorComponents = generateVerticesArrayFromVertex(vertice);
-            allVerticesAsFloatArr.insert(allVerticesAsFloatArr.end(), vectorComponents.begin(), vectorComponents.end());
+            }
         }
-        return allVerticesAsFloatArr;
-    }
 
-    void vectorToFloatArray(const std::vector<float>& vec, float arr[]) {
-        for (size_t i = 0; i < vec.size(); i++) {
-            arr[i] = vec[i];
-        }
-    }
-
-    std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
-        return { (float)v.Position.x, (float)v.Position.y, (float)v.Position.z };
+        return VoronoiMeshes;
     }
 
  
 private:
 
     PhysicsEngineAbstraction pe;
-
-    
 
     void uniqueVerticesFromModel(std::set<btVector3>& uniqueVertices, Model* model) {
         for (auto& vertex : model->meshes[0].vertices) {

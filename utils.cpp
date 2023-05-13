@@ -144,7 +144,19 @@ void subMatrix(float mat[N][N], float temp[N][N], int p, int q, int n) {
     }
 }
 
+glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, glm::vec3 point2) {
+    glm::vec3 dir = glm::normalize(glm::cross(normal1, normal2));
+    float d1 = glm::dot(normal1, point1);
+    float d2 = glm::dot(normal2, point2);
+    float d3 = glm::dot(dir, point1 - point2);
+    float t = (d1 - d2) / d3;
+    return point1 + t * dir;
+}
+
+
+
 #include <glm/glm.hpp>
+#include "mesh.h"
 
 glm::vec3 convertToVec3(btVector3 vec) {
     glm::vec3 vector = glm::vec3(vec.getX(), vec.getY(), vec.getZ());
@@ -293,15 +305,89 @@ TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2) {
 
 }
 
+std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std::vector<Tetrahedron> tetrahedra) {
+    std::vector<Tetrahedron> result;
 
-glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, glm::vec3 point2) {
-    glm::vec3 dir = glm::normalize(glm::cross(normal1, normal2));
-    float d1 = glm::dot(normal1, point1);
-    float d2 = glm::dot(normal2, point2);
-    float d3 = glm::dot(dir, point1 - point2);
-    float t = (d1 - d2) / d3;
-    return point1 + t * dir;
+    for (Tetrahedron tetrahedron : tetrahedra) {
+        bool foundv1 = false;
+        bool foundv2 = false;
+        for (TriangleFacet facet : tetrahedron.facets) {
+            for (btVector3 v : facet.vertices) {
+                if (v == v1) {
+                    foundv1 = true;
+                }
+                else if (v == v2) {
+                    foundv2 = true;
+                }
+            }
+            if (foundv1 && foundv2) {
+                for (const btVector3& v : facet.vertices) {
+                    if (v != v1 && v != v2) {
+                        result.push_back(tetrahedron);
+                        break;
+                    }
+                }
+                break;
+            }
+            else {
+                foundv1 = false;
+                foundv2 = false;
+            }
+        }
+    }
+
+    return result;
 }
+
+std::vector<std::pair<btVector3, btVector3>> findIncidentEdges(const std::vector<Tetrahedron>& tetras, const btVector3& vertex) {
+    std::vector<std::pair<btVector3, btVector3>> edges;
+    for (auto tetra : tetras) {
+        for (auto facet : tetra.facets) {
+            auto vertices = facet.vertices;
+            if (vertices[0] == vertex) {
+                edges.emplace_back(vertices[1], vertices[2]);
+            }
+            else if (vertices[1] == vertex) {
+                edges.emplace_back(vertices[0], vertices[2]);
+            }
+            else if (vertices[2] == vertex) {
+                edges.emplace_back(vertices[0], vertices[1]);
+            }
+        }
+    }
+    return edges;
+}
+
+// Function to convert Vector to Set
+std::set<btVector3> convertToSet(std::vector<btVector3> v)
+{
+    std::set<btVector3> s;
+    for (btVector3 x : v) {
+        s.insert(x);
+    }
+    return s;
+}
+
+
+std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices) {
+    std::vector<float> allVerticesAsFloatArr;
+    for (auto& vertice : allVertices) {
+        std::vector<float> vectorComponents = generateVerticesArrayFromVertex(vertice);
+        allVerticesAsFloatArr.insert(allVerticesAsFloatArr.end(), vectorComponents.begin(), vectorComponents.end());
+    }
+    return allVerticesAsFloatArr;
+}
+
+void vectorToFloatArray(const std::vector<float>& vec, float arr[]) {
+    for (size_t i = 0; i < vec.size(); i++) {
+        arr[i] = vec[i];
+    }
+}
+
+std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
+    return { (float)v.Position.x, (float)v.Position.y, (float)v.Position.z };
+}
+
 
 
 

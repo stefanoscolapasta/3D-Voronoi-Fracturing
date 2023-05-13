@@ -44,5 +44,11 @@ bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f);
 bool areTetrasEqual(Tetrahedron t1, Tetrahedron t2);
 bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2);
 bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point);
+std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std::vector<Tetrahedron> tetrahedra);
+std::vector<std::pair<btVector3, btVector3>> findIncidentEdges(const std::vector<Tetrahedron>& tetras, const btVector3& vertex);
+std::set<btVector3> convertToSet(std::vector<btVector3> v);
 TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2);
+std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices);
+void vectorToFloatArray(const std::vector<float>& vec, float arr[]);
+std::vector<float> generateVerticesArrayFromVertex(Vertex v);
 #endif
