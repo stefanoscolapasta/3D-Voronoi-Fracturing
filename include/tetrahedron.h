@@ -11,4 +11,13 @@ struct Tetrahedron {
     std::set<btVector3> allSingularVertices;
     std::vector<TriangleFacet> facets;
     std::vector<float> verticesAsSingleArr;
+
+};
+
+struct TetrahedronComparator {
+    bool operator()(const Tetrahedron& t1, const Tetrahedron& t2) const {
+        if (t1.VAO < t2.VAO)
+            return true;
+        return false;
+    }
 };

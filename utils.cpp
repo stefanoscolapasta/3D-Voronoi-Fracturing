@@ -1,5 +1,6 @@
 #include"utils.h"
 
+
 //OPENGL UTILS
 
 // timing
@@ -155,8 +156,7 @@ glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, g
 
 
 
-#include <glm/glm.hpp>
-#include "mesh.h"
+
 
 glm::vec3 convertToVec3(btVector3 vec) {
     glm::vec3 vector = glm::vec3(vec.getX(), vec.getY(), vec.getZ());

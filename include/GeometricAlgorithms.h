@@ -1,11 +1,11 @@
 #pragma once
-#include<glm/glm.hpp>
+#include <glm/glm.hpp>
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
 #include <vector>
 #include <algorithm>
 #include <set>
-#include<algorithm>
+#include <algorithm>
 #include <map>
 #include "utils.h"
 #include "tetrahedron.h"
@@ -287,12 +287,12 @@ public:
         //Vor vertex - Del tetra equivalence
         std::vector<VoronoiEdge> edges;
         //mapping each Delauney tetrahedron with its corresponding Voronoi vertex 
-        std::map<Tetrahedron,btVector3 > tetraVertexEq;
+        std::map<Tetrahedron, btVector3, TetrahedronComparator> tetraVertexEq;
         //mapping each Voronoi edge with its corresponding Delaunay facet (easier to perform algorithm with this structure)
-        std::map<VoronoiEdge, TriangleFacet> edgeFacetEq;
+        std::map<VoronoiEdge, TriangleFacet, VoronoiEdgeComparator> edgeFacetEq;
         //Vor edges going out from Vor vertex
-        std::map<btVector3, std::vector<VoronoiEdge>> edgesFromVorVertex;
-        for (Tetrahedron t : tetras) {
+        std::map<btVector3, std::vector<VoronoiEdge>, btVector3Comparator> edgesFromVorVertex;
+        for (auto t : tetras) {
             std::set<btVector3> points = t.allSingularVertices;
             btVector3 voronoiVertex = getSphereCenter(points);
             tetraVertexEq.insert({ t, voronoiVertex });

@@ -9,7 +9,6 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
-#include <iostream>
 #include "cube.h"
 #include "shader.h"
 #include "camera.h"

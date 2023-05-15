@@ -1,11 +1,14 @@
 #pragma once
+#ifndef UTILS_H
+#define UTILS_H
 #include <bullet/LinearMath/btVector3.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include "mesh.h"
 #include "camera.h"
 #include "tetrahedron.h"
 
-#ifndef UTILS_H
-#define UTILS_H
+
 #define N 4
 #define SCR_WIDTH 800
 #define SCR_HEIGHT  600
@@ -51,4 +54,12 @@ TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2);
 std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices);
 void vectorToFloatArray(const std::vector<float>& vec, float arr[]);
 std::vector<float> generateVerticesArrayFromVertex(Vertex v);
+
+struct btVector3Comparator {
+    bool operator()(const btVector3& v1, const btVector3& v2) const {
+        if (v1.getX() + v1.getY() + v1.getZ() < v2.getX() + v2.getY() + v2.getZ())
+            return true;
+        return false;
+    }
+};
 #endif
