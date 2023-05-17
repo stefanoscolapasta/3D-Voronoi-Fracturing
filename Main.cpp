@@ -30,7 +30,7 @@ const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 // camera
-Camera camera(glm::vec3(0.0f, 0.0f, 15.0f));
+Camera camera(glm::vec3(0.0f, 0.0f, 7.5f));
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
@@ -38,6 +38,7 @@ bool firstMouse = true;
 // timing
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+bool startSimulation = false;
 
 int main()
 {
@@ -139,9 +140,10 @@ int main()
         ourShader.setMat4("view", view);
         
         // UPDATE SIMULATION
-
-        pe.dynamicsWorld->stepSimulation(deltaTime, 10);
-        
+        if (startSimulation) {
+            pe.dynamicsWorld->stepSimulation(deltaTime, 10);
+        }
+             
         //Here I check for  collision, if collision happened I generate a point linearly interpolating the contact point and the centroid
         //This point will be used to generate new tetras and give effect of breaking
         //pe.dynamicsWorld->contactPairTest()
@@ -210,6 +212,8 @@ void processInput(GLFWwindow* window)
         camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
+        startSimulation = true;
 }
 
 unsigned int generateCubeVAO(float vertices[]) {
