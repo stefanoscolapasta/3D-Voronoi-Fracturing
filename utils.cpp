@@ -1,4 +1,5 @@
 #include"utils.h"
+#include <algorithm>
 
 
 //OPENGL UTILS
@@ -163,35 +164,6 @@ glm::vec3 convertToVec3(btVector3 vec) {
     return vector;
 }
 
-btVector3 getSphereCenter(std::set<btVector3> points) {
-    // Convert set to vector for easier access to points
-    std::vector<btVector3> p(points.begin(), points.end());
-
-    // Find midpoints of two line segments
-    btVector3 midpoint1 = (p[0] + p[1]) / 2.0;
-    btVector3 midpoint2 = (p[1] + p[2]) / 2.0;
-
-    // Find direction vectors of line segments
-    btVector3 direction1 = p[1] - p[0];
-    btVector3 direction2 = p[2] - p[1];
-
-    // Find normal vectors of perpendicular bisectors
-    btVector3 normal1 = direction1.cross(btVector3(0, 1, 0)).normalized();
-    btVector3 normal2 = direction2.cross(btVector3(0, 1, 0)).normalized();
-
-    // Find distance from midpoints to intersection of perpendicular bisectors
-    float d1 = midpoint1.dot(normal1);
-    float d2 = midpoint2.dot(normal2);
-
-    // Find intersection point of perpendicular bisectors
-    btVector3 center = ((d1 * normal2) - (d2 * normal1)).cross(normal1.cross(normal2)).normalized();
-
-    // Find radius of sphere
-    float radius = (center - p[0]).length();
-
-    // Return center of sphere
-    return center;
-}
 
 btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
     btVector3 center(0, 0, 0);
@@ -203,6 +175,32 @@ btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
     center /= 4.0;
 
     return center;
+}
+
+btVector3 getSphereCenter(std::set<btVector3> points) {
+    std::vector<glm::vec3> points_vec3;
+    for (auto point : points) {
+        points_vec3.push_back(convertToVec3(point));
+    }
+
+    // Find midpoints of two line segments
+    glm::vec3 midpoint1 = (points_vec3[0] + points_vec3[1]) / 2.0f;
+    glm::vec3 midpoint2 = (points_vec3[1] + points_vec3[2]) / 2.0f;
+
+    // Find direction vectors of line segments
+    glm::vec3 direction1 = points_vec3[1] - points_vec3[0];
+    glm::vec3 direction2 = points_vec3[2] - points_vec3[1];
+
+    // Find normal vectors of perpendicular bisectors
+    glm::vec3 normal1 = glm::normalize(glm::cross(direction1, glm::vec3(0, 1, 0)));
+    glm::vec3 normal2 = glm::normalize(glm::cross(direction2, glm::vec3(0, 1, 0)));
+
+    // Find intersection point of perpendicular bisectors
+    glm::vec3 center = glm::cross(normal1, normal2);
+    center = midpoint1 + ((glm::dot(normal2, normal2) * glm::cross(normal1, center)) - (glm::dot(normal1, normal1) * glm::cross(normal2, center))) / (2.0f * glm::dot(normal1, normal2));
+
+    // Return center of sphere
+    return btVector3(center.x, center.y, center.z);
 }
 
 
@@ -283,8 +281,14 @@ bool areTetrasEqual(Tetrahedron t1, Tetrahedron t2) {
 
 bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2) {
     // Check if each vertex is equal
-    for (int i = 0; i < f1.vertices.size(); i++) {
-        if (f1.vertices[i] != f2.vertices[i]) {
+    std::vector<btVector3> sortedVerticesF1 = f1.vertices;
+    std::vector<btVector3> sortedVerticesF2 = f2.vertices;
+    btVector3Comparator comparator;
+    std::sort(sortedVerticesF1.begin(), sortedVerticesF1.end(), comparator);
+    std::sort(sortedVerticesF2.begin(), sortedVerticesF2.end(), comparator);
+
+    for (int i = 0; i < sortedVerticesF1.size(); i++) {
+        if (sortedVerticesF1[i] != sortedVerticesF2[i]) {
             return false;
         }
     }
@@ -339,24 +343,6 @@ std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std
     return result;
 }
 
-std::vector<std::pair<btVector3, btVector3>> findIncidentEdges(const std::vector<Tetrahedron>& tetras, const btVector3& vertex) {
-    std::vector<std::pair<btVector3, btVector3>> edges;
-    for (auto tetra : tetras) {
-        for (auto facet : tetra.facets) {
-            auto vertices = facet.vertices;
-            if (vertices[0] == vertex) {
-                edges.emplace_back(vertices[1], vertices[2]);
-            }
-            else if (vertices[1] == vertex) {
-                edges.emplace_back(vertices[0], vertices[2]);
-            }
-            else if (vertices[2] == vertex) {
-                edges.emplace_back(vertices[0], vertices[1]);
-            }
-        }
-    }
-    return edges;
-}
 
 // Function to convert Vector to Set
 std::set<btVector3> convertToSet(std::vector<btVector3> v)

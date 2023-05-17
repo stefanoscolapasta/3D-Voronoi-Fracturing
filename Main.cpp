@@ -14,7 +14,7 @@
 #include "camera.h"
 #include "ground.h"
 #include "model.h"
-#include "physicsEngine.h"
+//#include "physicsEngine.h"
 #include "GeometricAlgorithms.h"
 #include "Collision.h"
 
@@ -93,6 +93,19 @@ int main()
     //I added the centroid (kinda)
     vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), *(vorFrac.tetraRigidbodies.begin())); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
     //Callback to use when checking collisions
+
+    std::vector<VoronoiMesh> voronoiResult = vorFrac.convertToVoronoi(vorFrac.tetrahedrons);
+    std::vector<btRigidBody> vorRigidBodies;
+    std::map<btRigidBody*, unsigned int> vorToVAO;
+    std::map<btRigidBody*, int> vorToNumVertices;
+    for (auto mesh : voronoiResult) {
+        btRigidBody *vorRigidBody = addVoronoiRigidBody(pe, mesh);
+        vorRigidBodies.push_back(*vorRigidBody);
+        vorToVAO[vorRigidBody] = mesh.VAO;
+        vorToNumVertices[vorRigidBody] = getTotalNumberOfVertices(mesh);
+    }
+
+
     MyContactResultCallback collisionResult;
 
     while (!glfwWindowShouldClose(window))
@@ -131,19 +144,15 @@ int main()
         //pe.dynamicsWorld->contactPairTest()
 
         //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
-        for (auto& tetraRigidbody : vorFrac.tetraRigidbodies) {
+        for (auto vorRigidbody : vorRigidBodies) {
 
-            pe.dynamicsWorld->contactPairTest(tetraRigidbody, cubeTerrainRigidbody, collisionResult); //Check collision with ground use contactTest to check will all rigidbodies
+            pe.dynamicsWorld->contactPairTest(&vorRigidbody, cubeTerrainRigidbody, collisionResult); //Check collision with ground use contactTest to check will all rigidbodies
 
-            if (collisionResult.m_closestDistanceThreshold > 0) {
-                std::cout << "Collision with ground"; //Does not work ffs
-            }
-
-            glBindVertexArray(vorFrac.tetraToVAO[tetraRigidbody]);
-            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(tetraRigidbody));
+            glBindVertexArray(vorToVAO[&vorRigidbody]);
+            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(&vorRigidbody));
             //Here we need the VAO for each tetrahedron as their shape is not always the same
-            // 
-            glDrawArrays(GL_LINE_STRIP, 0, 36);
+            const int numVertices = vorToNumVertices[&vorRigidbody];
+            glDrawArrays(GL_LINE_STRIP, 0, numVertices);
             //tetrahedronForTest->Draw(ourShader);
         }
         glBindVertexArray(cubeVAO);

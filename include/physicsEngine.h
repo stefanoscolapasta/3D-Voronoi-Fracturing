@@ -3,6 +3,7 @@
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
 #include <set>
+
 class PhysicsEngineAbstraction {
 	//TODO: HAVE A .HPP for declaration and a .CPP for the methods' IMPLEMENTATION
 private:
@@ -95,6 +96,28 @@ public:
 		btRigidBody* tetrahedronRigidBody = new btRigidBody(rigidBody);
 		tetrahedronRigidBody->setWorldTransform(startTransform);
 		return tetrahedronRigidBody;
+	}
+	
+
+	btRigidBody* generateVoronoiRigidbody(btVector3 startingPosition, std::set<btVector3> voronoiVertices, btVector3 scaleFactor) {
+		btTransform startTransform;
+		startTransform.setIdentity();
+		startTransform.setOrigin(startingPosition);
+		btScalar mass(1.0f);
+		btVector3 localInertia(0, 0, 0);
+		btConvexHullShape* shape = new btConvexHullShape();
+
+		for (auto vertex : voronoiVertices) {
+			shape->addPoint(vertex);
+		}
+
+		shape->setLocalScaling(scaleFactor);
+		btDefaultMotionState* meshMotionState = new btDefaultMotionState(startTransform);
+		shape->calculateLocalInertia(mass, localInertia);
+		btRigidBody::btRigidBodyConstructionInfo rigidBody(mass, meshMotionState, shape, localInertia);
+		btRigidBody* meshRigidBody = new btRigidBody(rigidBody);
+		meshRigidBody->setWorldTransform(startTransform);
+		return meshRigidBody;
 	}
 
 
