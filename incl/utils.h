@@ -13,8 +13,6 @@
 #define SCR_WIDTH 800
 #define SCR_HEIGHT  600
 
-
-
 //OPENGL UTILS
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);

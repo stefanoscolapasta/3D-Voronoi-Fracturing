@@ -11,7 +11,7 @@
 #include "tetrahedron.h"
 #include "mesh.h"
 #include "voronoi.h"
-#include"model.h"
+#include "model.h"
 #include "physicsEngine.h"
 #include "Cube.h"
 
@@ -56,6 +56,8 @@ public:
 
     void insertOnePoint(btVector3 t, btRigidBody* toFlip) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
         std::vector<Tetrahedron> newTetrahedrons = flip14(t, rigidbodyToTetra[toFlip]);
+        flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
+        //flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
         //I now remove the original container rigidbody from the structs, as I will add the tetrahedrons in which it is divided
         //the idea is correct but popping the last element makes no sense; I should use a gerarchical data struct (nested map), so that I have 
         tetraRigidbodies.erase(toFlip);
@@ -141,9 +143,35 @@ public:
         return newTetrahedrons;
     }
 
+    std::vector<Tetrahedron> flip23(Tetrahedron tetrahedron1, Tetrahedron tetrahedron2) {
+        //I assume the given tetrahedrons are correct and neighbours
+        //I now need to find the facet they share
+        std::map<TriangleFacet, int, TriangleFacetComparator> facets;
+        for (int i = 0; i < tetrahedron1.facets.size() && i < tetrahedron2.facets.size(); i++) {
+            facets[tetrahedron1.facets[i]] += 1;
+            facets[tetrahedron2.facets[i]] += 1;
+        }
 
-  
+        bool haveOneSameFacet = false;
+        TriangleFacet sameFacet;
 
+        for (std::map<TriangleFacet, int, TriangleFacetComparator>::iterator it = facets.begin(); it != facets.end(); ++it) {
+            if (it->second > 1) {
+                haveOneSameFacet = true;
+                sameFacet = it->first;
+            }
+        }
+
+        if (haveOneSameFacet) {
+            btVector3 v1 = getOppositeVerticeToFacet(tetrahedron1, sameFacet);
+            btVector3 v2 = getOppositeVerticeToFacet(tetrahedron2, sameFacet);
+
+            //I now need to build an edge between these two vertices, will use this edge as a divideder to create 3 new tetrahedrons
+
+        }
+
+        return { tetrahedron1 ,tetrahedron2 };
+    }
 
     //triangles -> tetrahedra
     //edges -> facets
@@ -180,6 +208,15 @@ public:
         return neighbours;
         
 
+    }
+
+    btVector3 getOppositeVerticeToFacet(Tetrahedron tetra, TriangleFacet facet){
+        for (auto& vertex : tetra.allSingularVertices) {
+            if (std::find(facet.vertices.begin(), facet.vertices.end(), vertex) != facet.vertices.end()) {
+                return vertex;
+            }
+        }
+        throw std::invalid_argument("Strange, didn't find the opposite vertice to this facet in this tetrahedron");
     }
 
     void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p) {

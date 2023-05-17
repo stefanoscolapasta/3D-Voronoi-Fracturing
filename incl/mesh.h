@@ -1,13 +1,15 @@
+#pragma once
 #ifndef MESH_H
 #define MESH_H
 
-#include <glad/glad.h> // holds all OpenGL type declarations
+//#include <glad/glad.h> // holds all OpenGL type declarations
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "shader.h"
 #include <string>
 #include <vector>
+
 using namespace std;
 
 #define MAX_BONE_INFLUENCE 4

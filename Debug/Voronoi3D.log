@@ -1,0 +1,7 @@
+﻿  GeometricAlgorithms.cpp
+  Main.cpp
+  objloader.cpp
+  Generating Code...
+D:\Stefano\OpenGL_stuff\Projects\Voronoi3D\Voronoi3D\objloader.cpp(88): warning C4715: 'loadOBJ': not all control paths return a value
+  glad.c
+Debug\GeometricAlgorithms.obj : fatal error LNK1112: module machine type 'x86' conflicts with target machine type 'x64'

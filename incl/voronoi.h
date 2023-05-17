@@ -80,13 +80,13 @@ struct VoronoiEdgeComparator {
 };
 
 btRigidBody* addVoronoiRigidBody(PhysicsEngineAbstraction pe, VoronoiMesh voronoi) {
-		btRigidBody* voronoiRigidBody = pe.generateVoronoiRigidbody(
+	btRigidBody* voronoiRigidBody = pe.generateVoronoiRigidbody(
 		cubePositions[0], // Use cube position as starting position
 		voronoi.allSingularVertices,
 		btVector3(1.0f, 1.0f, 1.0f)
 	);
 
-	pe.dynamicsWorld->addRigidBody(voronoiRigidBody,1,1);
+	pe.dynamicsWorld->addRigidBody(voronoiRigidBody, 1, 1);
 	return voronoiRigidBody;
 }
 

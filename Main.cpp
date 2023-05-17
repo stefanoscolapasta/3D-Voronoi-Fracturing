@@ -1,27 +1,25 @@
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#define GL_INCLUDE_NONE
+#include "incl/stb_image.h"
 #include <iostream>
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#include "incl/shader.h"
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/euler_angles.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
-#include "cube.h"
-#include "shader.h"
-#include "camera.h"
-#include "ground.h"
-#include "model.h"
-#include "physicsEngine.h"
-#include "GeometricAlgorithms.h"
-#include "Collision.h"
-
+#include "incl/cube.h"
+#include "incl/camera.h"
+#include "incl/ground.h"
+#include "incl/model.h"
+#include "incl/physicsEngine.h"
+#include "incl/Collision.h"
+#include "incl/GeometricAlgorithms.h"
+#include <GLFW/glfw3.h>
 
 unsigned int generateCubeVAO(float vertices[]);
-
-
 
 int main()
 {
@@ -98,13 +96,13 @@ int main()
     std::vector<btRigidBody> vorRigidBodies;
     std::map<btRigidBody*, unsigned int> vorToVAO;
     std::map<btRigidBody*, int> vorToNumVertices;
+
     for (auto mesh : voronoiResult) {
         btRigidBody *vorRigidBody = addVoronoiRigidBody(pe, mesh);
         vorRigidBodies.push_back(*vorRigidBody);
         vorToVAO[vorRigidBody] = mesh.VAO;
         vorToNumVertices[vorRigidBody] = getTotalNumberOfVertices(mesh);
     }
-
 
     MyContactResultCallback collisionResult;
 
@@ -136,7 +134,6 @@ int main()
         ourShader.setMat4("view", view);
 
         // UPDATE SIMULATION
-
         pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
 
         //Here I check for  collision, if collision happened I generate a point linearly interpolating the contact point and the centroid
@@ -159,7 +156,7 @@ int main()
         glm::mat4 model = pe.getUpdatedGLModelMatrix(cubeTerrainRigidbody);
         model = glm::scale(model, glm::vec3(10.0f, 1.0f, 10.0f));
         ourShader.setMat4("model", model);
-        glDrawArrays(GL_LINE_STRIP, 0, 36);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);
