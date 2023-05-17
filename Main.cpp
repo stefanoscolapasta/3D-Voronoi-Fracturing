@@ -14,7 +14,7 @@
 #include "camera.h"
 #include "ground.h"
 #include "model.h"
-//#include "physicsEngine.h"
+#include "physicsEngine.h"
 #include "GeometricAlgorithms.h"
 #include "Collision.h"
 
@@ -69,7 +69,7 @@ int main()
 
     // build and compile shaders
     // -------------------------
-    Shader ourShader("vshader.vert", "fshader.frag");
+    Shader ourShader("shaders/vshader.vert", "shaders/fshader.frag");
 
     // load models
     // -----------
