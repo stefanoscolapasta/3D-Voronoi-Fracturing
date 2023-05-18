@@ -31,6 +31,13 @@ public:
     std::map<btRigidBody*, unsigned int> tetraToVAO;
     std::map<btRigidBody*, Tetrahedron> rigidbodyToTetra;
 
+
+
+std::vector<btRigidBody*> vorRigidBodies;
+std::map<btRigidBody*, unsigned int> vorToVAO;
+std::map<btRigidBody*, int> vorToNumVertices;
+std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
+
     VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe) : pe(pe) { //Will have to generalize to other shapes
         tetrahedronsModelsVector.push_back(tetrahedronModel);
 
@@ -54,32 +61,32 @@ public:
         pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
     };
 
-    void insertOnePoint(btVector3 t, btRigidBody* toFlip) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
+    void insertOnePoint(btVector3 t, btRigidBody* toFlip, btVector3 startPos) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
         std::vector<Tetrahedron> newTetrahedrons = flip14(t, rigidbodyToTetra[toFlip]);
         flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
-        //flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
         //I now remove the original container rigidbody from the structs, as I will add the tetrahedrons in which it is divided
         //the idea is correct but popping the last element makes no sense; I should use a gerarchical data struct (nested map), so that I have 
+        glm::vec3 parentColor = rigidbodyToTetra[toFlip].color;
         tetraRigidbodies.erase(toFlip);
         pe.dynamicsWorld->removeRigidBody(toFlip); //And remember to remove it from the physics world
 
         for (auto& newTetrahedron : newTetrahedrons) {
-            
+            newTetrahedron.color = parentColor;
+            newTetrahedron.VAO = createTetrahedronVAO(newTetrahedron);
 
             tetrahedrons.push_back(newTetrahedron);
 
-            //btRigidBody* tetraRigidbody = pe.generateTetrahedronRigidbody(
-            //    cubePositions[0], // Use cube position as starting position
-            //    newTetrahedron.allSingularVertices,
-            //    btVector3(1.0f, 1.0f, 1.0f)
-            //);
+            btRigidBody* tetraRigidbody = pe.generateTetrahedronRigidbody(
+                startPos, // Use cube position as starting position
+                newTetrahedron.allSingularVertices,
+                btVector3(1.0f, 1.0f, 1.0f)
+            );
 
-            //tetraToVAO[tetraRigidbody] = newTetrahedron.VAO;
-            //rigidbodyToTetra[tetraRigidbody] = newTetrahedron;
-            //tetraRigidbodies.insert(tetraRigidbody);
-            //pe.dynamicsWorld->addRigidBody(tetraRigidbody,1,1);
+            tetraToVAO[tetraRigidbody] = newTetrahedron.VAO;
+            rigidbodyToTetra[tetraRigidbody] = newTetrahedron;
+            tetraRigidbodies.insert(tetraRigidbody);
+            pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
         }
-
     }
 
     std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron) {
@@ -550,6 +557,16 @@ private:
         }
     }
 
+    void fillVertexData(std::vector<float> verticesAsSingleArr, glm::vec3 color, float vertices[]) {
+        std::vector<float> colorAsFloatVec = { color.r, color.g, color.b };
+        std::vector<float> verticeAndColorssAsSingleArr;
+        for (int i = 0; i < verticesAsSingleArr.size(); i += 3) {
+            verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), verticesAsSingleArr.begin() + i, verticesAsSingleArr.begin() + (i + 3));
+            verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), colorAsFloatVec.begin(), colorAsFloatVec.end());
+        }
+        vectorToFloatArray(verticeAndColorssAsSingleArr, vertices);
+    }
+
     Vertex btVectorToVertex(btVector3 v) {
         return { { (float)v.getX(), (float)v.getY(), (float)v.getZ() }};
     }
@@ -602,12 +619,18 @@ private:
 
         glBindBuffer(GL_ARRAY_BUFFER, tetraVBO);
         //need to pass this to OpenGL as its simpler to handle strides and stuff
-        float vertices[GL_VERTICES_PER_TETRA];
-        vectorToFloatArray(tetra.verticesAsSingleArr, vertices);
+        float vertices[GL_VERTICES_PER_TETRA * 2];
+
+        fillVertexData(tetra.verticesAsSingleArr, tetra.color, vertices);
+
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
         // position attribute
-        glVertexAttribPointer(0, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, VERTICES_PER_TETRA_FACET * sizeof(float), (void*)0);
+        glVertexAttribPointer(0, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)0); // (VERTICES_PER_TETRA_FACET*2) to account for vertex color
         glEnableVertexAttribArray(0);
+
+        glVertexAttribPointer(3, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(3);
         return tetraVAO;
     }
 

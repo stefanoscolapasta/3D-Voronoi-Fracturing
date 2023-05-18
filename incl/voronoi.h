@@ -74,6 +74,21 @@ struct VoronoiEdgeComparator {
 	}
 };
 
+btVector3 getVoronoiMeshCenter(VoronoiMesh mesh) {
+	btVector3 center(0.0f, 0.0f, 0.0f);
+	int vertexCount = 0;
+
+	for (const btVector3& vertex : mesh.allUniqueVertices) {
+		center += vertex;
+		vertexCount++;
+	}
+
+	if (vertexCount > 0) {
+		center /= static_cast<float>(vertexCount);
+	}
+
+	return center;
+}
 
 std::vector<DelEdge> findIncidentEdges(std::vector<Tetrahedron> tetras, btVector3 vertex) {
 	std::set<DelEdge, DelEdgeComparator> incidentEdges;

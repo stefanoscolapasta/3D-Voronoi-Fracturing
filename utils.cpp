@@ -1,8 +1,8 @@
 #include "incl/utils.h"
 #include <algorithm>
 
-
 //OPENGL UTILS
+bool startSimulation = false;
 
 // timing
 float deltaTime = 0.0f;
@@ -15,6 +15,10 @@ float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
 
+bool isSimulationStarted() {
+    return startSimulation;
+}
+
 Camera getCamera() {
     return camera;
 }
@@ -26,12 +30,12 @@ float getLastFrame() {
 float getDeltaTime() {
     return deltaTime;
 }
-void setFrame(float deltaTime_, float lastFrame_){
+void setFrame(float deltaTime_, float lastFrame_) {
     deltaTime = deltaTime_;
     lastFrame = lastFrame_;
 }
 GLFWwindow* createWindow() {
-    GLFWwindow*window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
     return window;
 }
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
@@ -49,6 +53,8 @@ void processInput(GLFWwindow* window)
         camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
+        startSimulation = true;
 }
 
 
@@ -175,29 +181,36 @@ btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
 }
 
 btVector3 getSphereCenter(std::set<btVector3> points) {
+#define U(a,b,c,d,e,f,g,h) (a.z - b.z)*(c.x*d.y - d.x*c.y) - (e.z - f.z)*(g.x*h.y - h.x*g.y)
+#define D(x,y,a,b,c) (a.x*(b.y-c.y) + b.x*(c.y-a.y) + c.x*(a.y-b.y))
+#define E(x,y) ((ra*D(x,y,b,c,d) - rb*D(x,y,c,d,a) + rc*D(x,y,d,a,b) - rd*D(x,y,a,b,c)) / uvw)
     std::vector<glm::vec3> points_vec3;
     for (auto point : points) {
-        points_vec3.push_back(convertToVec3(point));
+        points_vec3.push_back(glm::vec3(point.getX(), point.getY(), point.getZ()));
     }
 
-    // Find midpoints of two line segments
-    glm::vec3 midpoint1 = (points_vec3[0] + points_vec3[1]) / 2.0f;
-    glm::vec3 midpoint2 = (points_vec3[1] + points_vec3[2]) / 2.0f;
+    glm::vec3 a = points_vec3[0];
+    glm::vec3 b = points_vec3[1];
+    glm::vec3 c = points_vec3[2];
+    glm::vec3 d = points_vec3[3];
 
-    // Find direction vectors of line segments
-    glm::vec3 direction1 = points_vec3[1] - points_vec3[0];
-    glm::vec3 direction2 = points_vec3[2] - points_vec3[1];
+    double u = U(a, b, c, d, b, c, d, a);
+    double v = U(c, d, a, b, d, a, b, c);
+    double w = U(a, c, d, b, b, d, a, c);
+    double uvw = 2 * (u + v + w);
+    if (uvw == 0.0) {
+        // Oops.  The points are coplanar.
+    }
+    auto sq = [](glm::vec3 p) { return p.x * p.x + p.y * p.y + p.z * p.z; };
+    double ra = sq(a);
+    double rb = sq(b);
+    double rc = sq(c);
+    double rd = sq(d);
+    double x0 = E(y, z);
+    double y0 = E(z, x);
+    double z0 = E(x, y);
+    return btVector3(x0, y0, z0);
 
-    // Find normal vectors of perpendicular bisectors
-    glm::vec3 normal1 = glm::normalize(glm::cross(direction1, glm::vec3(0, 1, 0)));
-    glm::vec3 normal2 = glm::normalize(glm::cross(direction2, glm::vec3(0, 1, 0)));
-
-    // Find intersection point of perpendicular bisectors
-    glm::vec3 center = glm::cross(normal1, normal2);
-    center = midpoint1 + ((glm::dot(normal2, normal2) * glm::cross(normal1, center)) - (glm::dot(normal1, normal1) * glm::cross(normal2, center))) / (2.0f * glm::dot(normal1, normal2));
-
-    // Return center of sphere
-    return btVector3(center.x, center.y, center.z);
 }
 
 
@@ -297,7 +310,7 @@ bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2) {
 TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2) {
     for (auto f1 : t1.facets) {
         for (auto f2 : t2.facets) {
-            if (areTriangleFacetsEqual(f1,f2)) {
+            if (areTriangleFacetsEqual(f1, f2)) {
                 // The facets match, so return f1
                 return f1;
             }
@@ -305,6 +318,8 @@ TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2) {
     }
 
 }
+
+
 
 std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std::vector<Tetrahedron> tetrahedra) {
     std::vector<Tetrahedron> result;
@@ -341,16 +356,15 @@ std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std
 }
 
 
-// Function to convert Vector to Set
-std::set<btVector3> convertToSet(std::vector<btVector3> v)
-{
-    std::set<btVector3> s;
-    for (btVector3 x : v) {
-        s.insert(x);
-    }
-    return s;
-}
 
+std::vector<btVector3> convertToVector(std::set<btVector3> s)
+{
+    std::vector<btVector3> v;
+    for (btVector3 x : s) {
+        v.push_back(x);
+    }
+    return v;
+}
 
 std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices) {
     std::vector<float> allVerticesAsFloatArr;
@@ -372,3 +386,13 @@ std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
 }
 
 
+<<<<<<< HEAD
+=======
+
+
+
+
+
+
+
+>>>>>>> 66403d6d8670fe2e5927e2a04efc5d0e87d439f4
