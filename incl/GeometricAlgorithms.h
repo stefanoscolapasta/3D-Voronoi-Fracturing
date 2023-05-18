@@ -64,7 +64,7 @@ public:
         pe.dynamicsWorld->removeRigidBody(toFlip); //And remember to remove it from the physics world
 
         for (auto& newTetrahedron : newTetrahedrons) {
-            newTetrahedron.VAO = createTetrahedronVAO(newTetrahedron);
+            
 
             tetrahedrons.push_back(newTetrahedron);
 
@@ -105,38 +105,8 @@ public:
 
             std::vector<TriangleFacet> facets = { facet1, facet2, facet3, facet4 };
 
-            //Checked the individual positions of each facet and they are correct (visualized them in blender)
-            std::vector<btVector3> uniqueVertices;
-            for (auto& facet : facets) {
-                for (int i = 0; i < VERTICES_PER_TETRA_FACET; i++) {
-                    if (std::find(uniqueVertices.begin(), uniqueVertices.end(), facet.vertices[i]) == uniqueVertices.end()) { //If not found add it
-                        uniqueVertices.push_back(facet.vertices[i]);
-                    }
-                }
-            }
-
-            Tetrahedron newInsertedTetrahedron = {
-                {NULL},
-                {uniqueVertices[0], uniqueVertices[1], uniqueVertices[2], uniqueVertices[3]},
-                { facet1, facet2, facet3, facet4 },
-                {}
-            };
-
-            //From now onwards I am doing all these operations and for loops to flatten the vector and have each component of each position as element
-
-            std::vector<Vertex> toFill;
-            for (int k = 0; k < FACETS_PER_TETRA; k++) {
-                for (int j = 0; j < VERTICES_PER_TETRA_FACET; j++) {
-                    toFill.push_back(btVectorToVertex(newInsertedTetrahedron.facets[k].vertices[j]));
-                }
-            }
-
-            std::vector<float> flattenedValues = convertVertexVectorToFlatFloatArr(toFill);
-
-            for (int k = 0; k < GL_VERTICES_PER_TETRA; k++) {
-                newInsertedTetrahedron.verticesAsSingleArr.push_back(flattenedValues[k]);
-            }
-            
+            Tetrahedron newInsertedTetrahedron;
+            generateTetrahedronFromFacets(newInsertedTetrahedron, facets);
             newTetrahedrons.push_back(newInsertedTetrahedron);
         }
 
@@ -165,22 +135,135 @@ public:
         if (haveOneSameFacet) {
             btVector3 v1 = getOppositeVerticeToFacet(tetrahedron1, sameFacet);
             btVector3 v2 = getOppositeVerticeToFacet(tetrahedron2, sameFacet);
+            std::vector<Tetrahedron> flippedTetrahedrons;
+            //Here I create the 3 new tetras
+            for (int i = 0; i < 3; i++) {
+                TriangleFacet facet1 = {
+                { v1, v2,  sameFacet.vertices[i % 3]}
+                };
+                TriangleFacet facet2 = {
+                { v1, v2,  sameFacet.vertices[i+1 % 3]}
+                };
+                TriangleFacet facet3 = {
+                { v1, sameFacet.vertices[i % 3], sameFacet.vertices[i+1 % 3]}
+                };
+                TriangleFacet facet4 = {
+                { v2, sameFacet.vertices[i % 3], sameFacet.vertices[i+1 % 3]}
+                };
 
-            //I now need to build an edge between these two vertices, will use this edge as a divideder to create 3 new tetrahedrons
+                std::vector<TriangleFacet> facets = { facet1, facet2, facet3, facet4 };
 
+                Tetrahedron newTetra;
+                generateTetrahedronFromFacets(newTetra, facets);
+                flippedTetrahedrons.push_back(newTetra);
+            }
+                     
+            return flippedTetrahedrons;
         }
 
-        return { tetrahedron1 ,tetrahedron2 };
+        throw std::invalid_argument("Something went wrong: the passed tetrahedron do not share a facet");
     }
 
-    btVector3 getOppositeVerticeToFacet(Tetrahedron tetra, TriangleFacet facet){
-        for (auto& vertex : tetra.allSingularVertices) {
-            if (std::find(facet.vertices.begin(), facet.vertices.end(), vertex) != facet.vertices.end()) {
-                return vertex;
+    
+    std::vector<Tetrahedron> flip32(std::vector<Tetrahedron> tetrasToFlip) {
+        //I assume the given tetrahedrons are correct and neighbours
+        //I now need to find the facet they share
+        //I can leverage the fact that the vertices along the shared edge are the only ones shared by 3 tetrahedrons to find them
+        std::vector<Tetrahedron> newTetras;
+        std::map<btVector3, int, btVector3Comparator> vertices;
+        for (auto& tetra : tetrasToFlip) {
+            for (auto& vertex : tetra.allSingularVertices) {
+                vertices[vertex] += 1;
             }
         }
-        throw std::invalid_argument("Strange, didn't find the opposite vertice to this facet in this tetrahedron");
+
+        bool haveOne2CommonVertices = false;
+        int found = 0;
+        std::vector<btVector3> commonToAll;
+
+        for (std::map<btVector3, int, TriangleFacetComparator>::iterator it = vertices.begin(); it != vertices.end(); ++it) {
+            if (it->second == 3) {
+                found += 1;
+                commonToAll.push_back(it->first);
+            }
+        }
+        haveOne2CommonVertices = found == 2;
+
+        if (haveOne2CommonVertices) {
+            //I get all the singular vertices
+            std::set<btVector3> allSingularVerticesAcross3Tetras;
+            for (auto& tetra : tetrasToFlip) {
+                allSingularVerticesAcross3Tetras.insert(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end());
+            }
+
+            allSingularVerticesAcross3Tetras.erase(commonToAll[0]);
+            allSingularVerticesAcross3Tetras.erase(commonToAll[1]);
+
+            //They should be 3 now
+            std::vector<btVector3> allSingularVerticesAcross3TetrasVec(allSingularVerticesAcross3Tetras.begin(), allSingularVerticesAcross3Tetras.end());
+
+            for (auto& vertex : commonToAll) {
+                TriangleFacet facet1 = {
+                { vertex, allSingularVerticesAcross3TetrasVec[0],  allSingularVerticesAcross3TetrasVec[1]}
+                };
+                TriangleFacet facet2 = {
+                { vertex, allSingularVerticesAcross3TetrasVec[1],  allSingularVerticesAcross3TetrasVec[2]}
+                };
+                TriangleFacet facet3 = {
+                { vertex, allSingularVerticesAcross3TetrasVec[2], allSingularVerticesAcross3TetrasVec[0]}
+                };
+                TriangleFacet facet4 = {
+                { allSingularVerticesAcross3TetrasVec[0], allSingularVerticesAcross3TetrasVec[1], allSingularVerticesAcross3TetrasVec[2]}
+                };
+
+                std::vector<TriangleFacet> facets = { facet1, facet2, facet3, facet4 };
+
+                Tetrahedron newTetra;
+                generateTetrahedronFromFacets(newTetra, facets);
+                newTetras.push_back(newTetra);
+            }
+
+            return newTetras;
+        }
+
+        throw std::invalid_argument("Something went wrong: the passed tetrahedron do not share a facet");
     }
+
+    void generateTetrahedronFromFacets(Tetrahedron &tetraToGenerate, std::vector<TriangleFacet> facets) {
+        //Checked the individual positions of each facet and they are correct (visualized them in blender)
+        std::vector<btVector3> uniqueVertices;
+
+        for (auto& facet : facets) {
+            for (int i = 0; i < VERTICES_PER_TETRA_FACET; i++) {
+                if (std::find(uniqueVertices.begin(), uniqueVertices.end(), facet.vertices[i]) == uniqueVertices.end()) { //If not found add it
+                    uniqueVertices.push_back(facet.vertices[i]);
+                }
+            }
+        }
+
+        tetraToGenerate = {
+            {NULL},
+            {uniqueVertices[0], uniqueVertices[1], uniqueVertices[2], uniqueVertices[3]},
+            { facets[0], facets[1], facets[2], facets[3] },
+            {}
+        };
+
+        std::vector<Vertex> toFill;
+        for (int k = 0; k < FACETS_PER_TETRA; k++) {
+            for (int j = 0; j < VERTICES_PER_TETRA_FACET; j++) {
+                toFill.push_back(btVectorToVertex(tetraToGenerate.facets[k].vertices[j]));
+            }
+        }
+
+        std::vector<float> flattenedValues = convertVertexVectorToFlatFloatArr(toFill);
+
+        for (int k = 0; k < GL_VERTICES_PER_TETRA; k++) {
+            tetraToGenerate.verticesAsSingleArr.push_back(flattenedValues[k]);
+        }
+        tetraToGenerate.VAO = createTetrahedronVAO(tetraToGenerate);
+    }
+
+
 
     //triangles -> tetrahedra
     //edges -> facets
@@ -479,7 +562,36 @@ private:
         return btVector3(v.Position.x, v.Position.y, v.Position.z);
     }
 
-    
+    btVector3 getOppositeVerticeToFacet(Tetrahedron tetra, TriangleFacet facet) {
+        for (auto& vertex : tetra.allSingularVertices) {
+            if (std::find(facet.vertices.begin(), facet.vertices.end(), vertex) != facet.vertices.end()) {
+                return vertex;
+            }
+        }
+        throw std::invalid_argument("Strange, didn't find the opposite vertice to this facet in this tetrahedron");
+    }
+
+    TriangleFacet getOppositeFacetToVertice(Tetrahedron tetra, btVector3 vert) {
+        for (auto& facet : tetra.facets) {
+            if (std::find(facet.vertices.begin(), facet.vertices.end(), vert) == facet.vertices.end()) {
+                return facet;
+            }
+        }
+        throw std::invalid_argument("Strange, didn't find the opposite vertice to this facet in this tetrahedron");
+    }
+
+    bool doesTetraContainVertex(Tetrahedron tetra, btVector3 vert) {
+        for (auto& vertex : tetra.allSingularVertices) {
+            if (areBtVector3Equal(vertex, vert)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool areBtVector3Equal(btVector3 v1, btVector3 v2) {
+        return v1.getX() == v2.getX() && v1.getY() == v2.getY() && v1.getZ() == v2.getZ();
+    }
 
     unsigned int createTetrahedronVAO(Tetrahedron tetra) {
         unsigned int tetraVBO, tetraVAO;

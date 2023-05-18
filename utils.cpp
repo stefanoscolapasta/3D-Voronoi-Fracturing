@@ -156,9 +156,6 @@ glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, g
 }
 
 
-
-
-
 glm::vec3 convertToVec3(btVector3 vec) {
     glm::vec3 vector = glm::vec3(vec.getX(), vec.getY(), vec.getZ());
     return vector;
@@ -373,7 +370,5 @@ void vectorToFloatArray(const std::vector<float>& vec, float arr[]) {
 std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
     return { (float)v.Position.x, (float)v.Position.y, (float)v.Position.z };
 }
-
-
 
 

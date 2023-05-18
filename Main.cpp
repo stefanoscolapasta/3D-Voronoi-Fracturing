@@ -23,6 +23,7 @@ unsigned int generateCubeVAO(float vertices[]);
 
 int main()
 {
+
     int i, j;
     // glfw: initialize and configure
     // ------------------------------
