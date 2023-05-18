@@ -20,6 +20,8 @@
 #include <GLFW/glfw3.h>
 
 unsigned int generateCubeVAO(float vertices[]);
+bool checkForCollisionBetweenRbsAB(PhysicsEngineAbstraction pe, btRigidBody* rigidbodyToCheckA, btRigidBody* rigidbodyToCheckB);
+
 
 int main()
 {
@@ -77,37 +79,23 @@ int main()
 
     PhysicsEngineAbstraction pe;
     VoronoiFracturing vorFrac(tetrahedronForTest, pe);
-    //REMINDER: btCollisionObject is parentClass of btRigidBody
-    //MAKE FUNCTION FOR THIS
+
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);
 
     btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
-    // add the ground rigid body to the physics world
     pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
-    //pe.dynamicsWorld->addRigidBody(groundRigidBody,1,1);
 
+
+    btRigidBody* initialTetra = *(vorFrac.tetraRigidbodies.begin());
     //I added the centroid (kinda)
-    vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), *(vorFrac.tetraRigidbodies.begin())); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
-    //Callback to use when checking collisions
-
-    std::vector<VoronoiMesh> voronoiResult = vorFrac.convertToVoronoi(vorFrac.tetrahedrons);
-    std::vector<btRigidBody*> vorRigidBodies;
-    std::map<btRigidBody*, unsigned int> vorToVAO;
-    std::map<btRigidBody*, int> vorToNumVertices;
-    std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
-    for (auto& mesh : voronoiResult) {
-        btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, mesh, cubePositions[0]);
-        vorRigidBodies.push_back(vorRigidBody);
-        mesh.VAO = createVoronoiVAO(mesh);
-        vorToVAO[vorRigidBody] = mesh.VAO;
-        vorToNumVertices[vorRigidBody] = mesh.verticesAsSingleArr.size();
-        vorToIndices[vorRigidBody] = mesh.indices;
-    }
 
     MyContactResultCallback collisionResult;
+    //Callback to use when checking collisions
 
+    bool hasCollided = false;
     while (!glfwWindowShouldClose(window))
     {
+
 
         //Calculate deltatime
         float currentFrame = glfwGetTime();
@@ -135,21 +123,48 @@ int main()
 
         // UPDATE SIMULATION
 
-        pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
+        if (isSimulationStarted()) {
+            pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
 
+        }
 
-        for (auto& vorRigidbody : vorRigidBodies) {
+        
+        if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) {
 
-            pe.dynamicsWorld->contactPairTest(vorRigidbody, cubeTerrainRigidbody, collisionResult); //Check collision with ground use contactTest to check will all rigidbodies
+            vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), initialTetra, initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+            if (!hasCollided) {
+                pe.dynamicsWorld->removeRigidBody(initialTetra); //And remember to remove it from the physics world
+                pe.dynamicsWorld->removeCollisionObject(initialTetra);
+                hasCollided = true;
+            }
+            std::vector<VoronoiMesh> voronoiResult = vorFrac.convertToVoronoi(vorFrac.tetrahedrons);
+                for (auto& mesh : voronoiResult) {
+                btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, mesh, getVoronoiMeshCenter(mesh));
+                vorFrac.vorRigidBodies.push_back(vorRigidBody);
+                mesh.VAO = createVoronoiVAO(mesh);
+                vorFrac.vorToVAO[vorRigidBody] = mesh.VAO;
+                vorFrac.vorToNumVertices[vorRigidBody] = mesh.verticesAsSingleArr.size();
+                vorFrac.vorToIndices[vorRigidBody] = mesh.indices;
+            }
+        }
+        if(!hasCollided){
+            glBindVertexArray(vorFrac.tetraToVAO[initialTetra]);
+            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(initialTetra));
+            //Here we need the VAO for each tetrahedron as their shape is not always the same
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
 
-            glBindVertexArray(vorToVAO[vorRigidbody]);
+          
+
+        for (auto& vorRigidbody : vorFrac.vorRigidBodies) {
+            glBindVertexArray(vorFrac.vorToVAO[vorRigidbody]);
             ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(vorRigidbody));
             //Here we need the VAO for each tetrahedron as their shape is not always the same
-            const int numVertices = vorToNumVertices[vorRigidbody];
-
+            const int numVertices = vorFrac.vorToNumVertices[vorRigidbody];
             // Draw the mesh using indexed rendering
-            glDrawElements(GL_LINE_STRIP, vorToIndices[vorRigidbody].size(), GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_LINE_STRIP, vorFrac.vorToIndices[vorRigidbody].size(), GL_UNSIGNED_INT, 0);
         }
+
         glBindVertexArray(cubeVAO);
         glm::mat4 model = pe.getUpdatedGLModelMatrix(cubeTerrainRigidbody);
         model = glm::scale(model, glm::vec3(10.0f, 1.0f, 10.0f));
@@ -169,7 +184,23 @@ int main()
     return 0;
 }
 
-
+bool checkForCollisionBetweenRbsAB(PhysicsEngineAbstraction pe, btRigidBody* rigidbodyToCheckA, btRigidBody* rigidbodyToCheckB) {
+    int numManifolds = pe.dynamicsWorld->getDispatcher()->getNumManifolds();
+    for (int i = 0; i < numManifolds; i++)
+    {
+        btPersistentManifold* contactManifold = pe.dynamicsWorld->getDispatcher()->getManifoldByIndexInternal(i);
+        const btCollisionObject* obA = contactManifold->getBody0();
+        const btCollisionObject* obB = contactManifold->getBody1();
+        const btRigidBody* rbA = btRigidBody::upcast(obA);
+        const btRigidBody* rbB = btRigidBody::upcast(obB);
+        if ((rbA == rigidbodyToCheckA && rbB == rigidbodyToCheckB) || (rbB == rigidbodyToCheckA && rbA == rigidbodyToCheckB)) {
+            //contactManifold->getBody0()->getWorldTransform().getOrigin();
+            return true;
+        }
+        //... here you can check for obA´s and obB´s user pointer again to see if the collision is alien and bullet and in that case initiate deletion.
+    }
+    return false;
+}
 
 unsigned int generateCubeVAO(float vertices[]) {
     unsigned int cubeVBO, cubeVAO;
