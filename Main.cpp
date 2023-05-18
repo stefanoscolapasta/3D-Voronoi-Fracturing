@@ -81,8 +81,6 @@ int main()
     //MAKE FUNCTION FOR THIS
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);
 
-    //btRigidBody* cubeRigidBody = pe.generateCubeRigidbody(cubePositions[0], btVector3(0.5f, 0.5f, 0.5f), btVector3(1.0f, 1.0f, 1.0f));
-    //btRigidBody* groundRigidBody = pe.generateGroundRigidbody(groundPositions[0]);
     btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
     // add the ground rigid body to the physics world
     pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
@@ -93,15 +91,17 @@ int main()
     //Callback to use when checking collisions
 
     std::vector<VoronoiMesh> voronoiResult = vorFrac.convertToVoronoi(vorFrac.tetrahedrons);
-    std::vector<btRigidBody> vorRigidBodies;
+    std::vector<btRigidBody*> vorRigidBodies;
     std::map<btRigidBody*, unsigned int> vorToVAO;
     std::map<btRigidBody*, int> vorToNumVertices;
-
-    for (auto mesh : voronoiResult) {
-        btRigidBody *vorRigidBody = addVoronoiRigidBody(pe, mesh);
-        vorRigidBodies.push_back(*vorRigidBody);
+    std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
+    for (auto& mesh : voronoiResult) {
+        btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, mesh, cubePositions[0]);
+        vorRigidBodies.push_back(vorRigidBody);
+        mesh.VAO = createVoronoiVAO(mesh);
         vorToVAO[vorRigidBody] = mesh.VAO;
-        vorToNumVertices[vorRigidBody] = getTotalNumberOfVertices(mesh);
+        vorToNumVertices[vorRigidBody] = mesh.verticesAsSingleArr.size();
+        vorToIndices[vorRigidBody] = mesh.indices;
     }
 
     MyContactResultCallback collisionResult;
@@ -134,29 +134,27 @@ int main()
         ourShader.setMat4("view", view);
 
         // UPDATE SIMULATION
+
         pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
 
-        //Here I check for  collision, if collision happened I generate a point linearly interpolating the contact point and the centroid
-        //This point will be used to generate new tetras and give effect of breaking
-        //pe.dynamicsWorld->contactPairTest()
 
-        //ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(cubeRigidBody));
-        for (auto vorRigidbody : vorRigidBodies) {
+        for (auto& vorRigidbody : vorRigidBodies) {
 
-            pe.dynamicsWorld->contactPairTest(&vorRigidbody, cubeTerrainRigidbody, collisionResult); //Check collision with ground use contactTest to check will all rigidbodies
+            pe.dynamicsWorld->contactPairTest(vorRigidbody, cubeTerrainRigidbody, collisionResult); //Check collision with ground use contactTest to check will all rigidbodies
 
-            glBindVertexArray(vorToVAO[&vorRigidbody]);
-            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(&vorRigidbody));
+            glBindVertexArray(vorToVAO[vorRigidbody]);
+            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(vorRigidbody));
             //Here we need the VAO for each tetrahedron as their shape is not always the same
-            const int numVertices = vorToNumVertices[&vorRigidbody];
-            glDrawArrays(GL_LINE_STRIP, 0, numVertices);
-            //tetrahedronForTest->Draw(ourShader);
+            const int numVertices = vorToNumVertices[vorRigidbody];
+
+            // Draw the mesh using indexed rendering
+            glDrawElements(GL_LINE_STRIP, vorToIndices[vorRigidbody].size(), GL_UNSIGNED_INT, 0);
         }
         glBindVertexArray(cubeVAO);
         glm::mat4 model = pe.getUpdatedGLModelMatrix(cubeTerrainRigidbody);
         model = glm::scale(model, glm::vec3(10.0f, 1.0f, 10.0f));
         ourShader.setMat4("model", model);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glDrawArrays(GL_LINE_STRIP, 0, 36);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);

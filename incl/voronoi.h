@@ -18,9 +18,10 @@ struct VoronoiFacet {
 
 struct VoronoiMesh {
 	unsigned int VAO;
-	std::set<btVector3> allSingularVertices;
+	std::set<btVector3, btVector3Comparator> allUniqueVertices;
 	std::vector<VoronoiFacet> facets;
 	std::vector<float> verticesAsSingleArr;
+	std::vector<unsigned int> indices;
 };
 
 struct DelEdge {
@@ -28,13 +29,7 @@ struct DelEdge {
 	btVector3 v2;
 };
 
-struct PairComparator {
-	bool operator()(const std::pair<btVector3, btVector3>& p1, const std::pair<btVector3, btVector3>& p2) const {
-		if (p1.first != p2.first)
-			return p1.first < p2.first;
-		return p1.second < p2.second;
-	}
-};
+
 
 struct DelEdgeComparator {
 	bool operator()(const DelEdge& e1, const DelEdge& e2) const {
@@ -79,83 +74,141 @@ struct VoronoiEdgeComparator {
 	}
 };
 
-btRigidBody* addVoronoiRigidBody(PhysicsEngineAbstraction pe, VoronoiMesh voronoi) {
-	btRigidBody* voronoiRigidBody = pe.generateVoronoiRigidbody(
-		cubePositions[0], // Use cube position as starting position
-		voronoi.allSingularVertices,
-		btVector3(1.0f, 1.0f, 1.0f)
-	);
 
-	pe.dynamicsWorld->addRigidBody(voronoiRigidBody, 1, 1);
-	return voronoiRigidBody;
-}
+std::vector<DelEdge> findIncidentEdges(std::vector<Tetrahedron> tetras, btVector3 vertex) {
+	std::set<DelEdge, DelEdgeComparator> incidentEdges;
 
-int getTotalNumberOfVertices(VoronoiMesh voronoi) {
-	std::set<btVector3> vertices;
+	for (Tetrahedron tetra : tetras) {
+		for (TriangleFacet facet : tetra.facets) {
+			std::vector<btVector3>::iterator vertexIterator = std::find(facet.vertices.begin(), facet.vertices.end(), vertex);
+			if (vertexIterator != facet.vertices.end()) {
+				int i = vertexIterator - facet.vertices.begin();
+					DelEdge e1 = { facet.vertices[i], facet.vertices[(i+1)%3] };
+					DelEdge e1_reversed = { facet.vertices[(i + 1) % 3], facet.vertices[i] };
+					if(incidentEdges.find(e1) == incidentEdges.end() && incidentEdges.find(e1_reversed) == incidentEdges.end())
+						incidentEdges.insert(e1);
+					DelEdge e2 = { facet.vertices[i], facet.vertices[(i + 2) % 3] };
+					DelEdge e2_reversed = { facet.vertices[(i + 2) % 3], facet.vertices[i] };
+					if (incidentEdges.find(e2) == incidentEdges.end() && incidentEdges.find(e2_reversed) == incidentEdges.end())
+						incidentEdges.insert(e2);
 
-	for (auto facet : voronoi.facets) {
-		for (auto vertex: facet.vertices) {
-			vertices.insert(vertex);
+			}
 		}
 	}
 
-	return vertices.size();
+	// Convert the set to a vector and return
+	return std::vector<DelEdge>(incidentEdges.begin(), incidentEdges.end());
+}
+
+std::vector<Tetrahedron> getTetrasIncidentToVertex(std::vector<Tetrahedron> tetras, btVector3 vertex){
+	std::set<Tetrahedron, TetrahedronComparator> incidentTetras;
+
+	for (Tetrahedron tetra : tetras) {
+		for (TriangleFacet facet : tetra.facets) {
+			std::vector<btVector3>::iterator vertexIterator = std::find(facet.vertices.begin(), facet.vertices.end(), vertex);
+			if (vertexIterator != facet.vertices.end()) {
+				incidentTetras.insert(tetra);
+			}
+		}
+	}
+	
+	std::vector<Tetrahedron> incidentTetras_vector;
+	for(auto tetra: incidentTetras){
+		incidentTetras_vector.push_back(tetra);
+	}
+	return incidentTetras_vector;
+}
+
+
+btRigidBody* addVoronoiRigidBody(PhysicsEngineAbstraction pe, VoronoiMesh voronoi, btVector3 startingPosition) {
+		btRigidBody* voronoiRigidBody = pe.generateVoronoiRigidbody(
+		startingPosition, // Use cube position as starting position
+		std::set<btVector3> (voronoi.allUniqueVertices.begin(), voronoi.allUniqueVertices.end()),
+		btVector3(1.0f, 1.0f, 1.0f)
+	);
+
+	pe.dynamicsWorld->addRigidBody(voronoiRigidBody,1,1);
+	return voronoiRigidBody;
+}
+
+
+std::vector<DelEdge> convertEdgeSetToVector(std::set<DelEdge, DelEdgeComparator> vorEdgeSet) {
+	std::vector<DelEdge> vorEdgeVec;
+	for (auto edge : vorEdgeSet)
+		vorEdgeVec.push_back(edge);
+	
+	return vorEdgeVec;
 }
 
 
 
-unsigned int createVoronoiVAO(VoronoiMesh voronoi) {
-	unsigned int voronoiVBO, voronoiVAO;
-	glGenVertexArrays(1, &voronoiVAO);
-	glGenBuffers(1, &voronoiVBO);
+std::vector<DelEdge> findOutgoingEdges(std::vector<Tetrahedron> tetras, btVector3 vertex)
+{
+	std::set<DelEdge, DelEdgeComparator> outgoingEdges;
+	std::vector<Tetrahedron> tetrasIncidentToVertex = getTetrasIncidentToVertex(tetras, vertex );
+	for (Tetrahedron tetra : tetrasIncidentToVertex) {
+		TriangleFacet sharedFacet = findSharedFacet(tetra, tetra);
+		for (btVector3 v : sharedFacet.vertices) {
+			if (v != vertex) {
+				DelEdge edge = DelEdge({ vertex, v });
+				DelEdge reverseEdge = DelEdge({ v, vertex });
+				if (outgoingEdges.find(edge) == outgoingEdges.end() &&
+					outgoingEdges.find(reverseEdge) == outgoingEdges.end()) {
+					outgoingEdges.insert(edge);
+				}
+			}
+		}
+	}
 
-	glBindVertexArray(voronoiVAO);
+	return convertEdgeSetToVector(outgoingEdges);
 
-	glBindBuffer(GL_ARRAY_BUFFER, voronoiVBO);
-	const int numVertices = getTotalNumberOfVertices(voronoi);
+}
+
+
+
+unsigned int createVoronoiVAO(VoronoiMesh & voronoi) {
+	unsigned int voronoiVBO, voronoiVAO, voronoiEBO;
+
+	const int numVertices = voronoi.verticesAsSingleArr.size();
 	//need to pass this to OpenGL as its simpler to handle strides and stuff
 	float* vertices = new float[numVertices];
-	vectorToFloatArray(voronoi.verticesAsSingleArr, vertices);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-
-	unsigned int offset = 0;
-	for (auto facet : voronoi.facets) {
-		unsigned int facetSize = facet.vertices.size();
-
-		// Specify the vertex attribute pointer for the current facet
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)offset);
-		glEnableVertexAttribArray(0);
-
-		// Increase the offset based on the facet size
-		offset += facetSize * sizeof(float) * 3;
+	std::vector<unsigned int> indices;
+	for (auto& facet : voronoi.facets) {
+		// Add facet indices to the index array
+		unsigned int vertexCount = facet.vertices.size();
+		unsigned int startIndex = indices.size();
+		for (unsigned int i = 0; i < vertexCount - 2; ++i) {
+			indices.push_back(startIndex);
+			indices.push_back(startIndex + i + 1);
+			indices.push_back(startIndex + i + 2);
+		}
 	}
-	// Unbind the VAO
+
+	voronoi.indices = indices;
+
+	// Create vertex buffer object (VBO)
+	glGenBuffers(1, &voronoiVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, voronoiVBO);
+	glBufferData(GL_ARRAY_BUFFER, voronoi.verticesAsSingleArr.size() * sizeof(float), voronoi.verticesAsSingleArr.data(), GL_STATIC_DRAW);
+
+	// Create element buffer object (EBO)
+	glGenBuffers(1, &voronoiEBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, voronoiEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+	// Create vertex array object (VAO)
+	glGenVertexArrays(1, &voronoiVAO);
+	glBindVertexArray(voronoiVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, voronoiVBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, voronoiEBO);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+	glEnableVertexAttribArray(0);
 	glBindVertexArray(0);
 
 	return voronoiVAO;
 }
 
 
-std::vector<DelEdge> findIncidentEdges( std::vector<Tetrahedron> tetras, btVector3 vertex) {
-	std::vector<DelEdge> edges;
-	for (auto tetra : tetras) {
-		for (auto facet : tetra.facets) {
-			auto vertices = facet.vertices;
-			if (vertices[0] == vertex) {
-				DelEdge edge = { vertices[1], vertices[2] };
-				edges.push_back(edge);
-			}
-			else if (vertices[1] == vertex) {
-				DelEdge edge = { vertices[0], vertices[2] };
-				edges.push_back(edge);
-			}
-			else if (vertices[2] == vertex) {
-				DelEdge edge = { vertices[0], vertices[1] };
-				edges.push_back(edge);
-			}
-		}
-	}
-	return edges;
-}
+
 #endif
