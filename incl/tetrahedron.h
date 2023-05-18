@@ -7,12 +7,26 @@ struct TriangleFacet {
     std::vector<btVector3> vertices;
 };
 
+struct btVector3Comparator {
+    bool operator()(const btVector3& v1, const btVector3& v2) const {
+        return v1.getX() + v1.getY() + v1.getZ() < v2.getX() + v2.getY() + v2.getZ();
+    }
+};
+
 struct Tetrahedron {
     unsigned int VAO;
-    std::set<btVector3> allSingularVertices;
+    std::set<btVector3, btVector3Comparator> allSingularVertices;
     std::vector<TriangleFacet> facets;
     std::vector<float> verticesAsSingleArr;
     glm::vec3 color;
+};
+
+struct TetrahedronComparator {
+    bool operator()(const Tetrahedron& t1, const Tetrahedron& t2) const {
+        if (t1.VAO < t2.VAO)
+            return true;
+        return false;
+    }
 };
 
 struct TriangleFacetComparator {
@@ -33,10 +47,4 @@ struct TriangleFacetComparator {
 };
 
 
-struct TetrahedronComparator {
-    bool operator()(const Tetrahedron& t1, const Tetrahedron& t2) const {
-        if (t1.VAO < t2.VAO)
-            return true;
-        return false;
-    }
-};
+

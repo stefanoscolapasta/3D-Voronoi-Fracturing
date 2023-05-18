@@ -76,10 +76,10 @@ int main()
     // -----------
 
 
-    Model* tetrahedronForTest = new Model("geom/tetrahedron.obj");
+    Model* tetrahedronForTest = new Model("geom/tetra2.obj");
 
     PhysicsEngineAbstraction pe;
-    VoronoiFracturing vorFrac(tetrahedronForTest, pe);
+    VoronoiFracturing vorFrac(tetrahedronForTest, pe, cubePositions[0]);
 
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);
 
@@ -96,7 +96,6 @@ int main()
     bool hasCollided = false;
     while (!glfwWindowShouldClose(window))
     {
-
 
         //Calculate deltatime
         float currentFrame = glfwGetTime();
@@ -149,7 +148,7 @@ int main()
             }
         }
         if(!hasCollided){
-            glBindVertexArray(vorFrac.tetraToVAO[initialTetra]);
+            glBindVertexArray(vorFrac.rigidbodyToVAO[initialTetra]);
             ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(initialTetra));
             //Here we need the VAO for each tetrahedron as their shape is not always the same
             glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -198,7 +197,7 @@ bool checkForCollisionBetweenRbsAB(PhysicsEngineAbstraction pe, btRigidBody* rig
             //contactManifold->getBody0()->getWorldTransform().getOrigin();
             return true;
         }
-        //... here you can check for obA´s and obB´s user pointer again to see if the collision is alien and bullet and in that case initiate deletion.
+        //... here you can check for obAï¿½s and obBï¿½s user pointer again to see if the collision is alien and bullet and in that case initiate deletion.
     }
     return false;
 }

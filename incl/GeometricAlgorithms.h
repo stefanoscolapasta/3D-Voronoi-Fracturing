@@ -19,6 +19,7 @@
 #define FACETS_PER_TETRA 4
 #define VERTICES_PER_TETRA_FACET 3
 #define UNIQUE_VERTICES_PER_TETRA 4
+#define MESH_FACE_VERTICES 3
 
 
 class VoronoiFracturing {
@@ -28,42 +29,57 @@ public:
     std::vector<Model*> tetrahedronsModelsVector; //Its a vector of arrays of btVector3
     std::set<btRigidBody*> tetraRigidbodies;
     std::vector<Tetrahedron> tetrahedrons;
-    std::map<btRigidBody*, unsigned int> tetraToVAO;
+    std::map<btRigidBody*, unsigned int> rigidbodyToVAO;
     std::map<btRigidBody*, Tetrahedron> rigidbodyToTetra;
 
+    std::vector<btRigidBody*> vorRigidBodies;
+    std::map<btRigidBody*, unsigned int> vorToVAO;
+    std::map<btRigidBody*, int> vorToNumVertices;
+    std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
+    std::map<Mesh, std::set<btVector3, btVector3Comparator>, MeshComparator> meshToVertices;
 
-
-std::vector<btRigidBody*> vorRigidBodies;
-std::map<btRigidBody*, unsigned int> vorToVAO;
-std::map<btRigidBody*, int> vorToNumVertices;
-std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
-
-    VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe) : pe(pe) { //Will have to generalize to other shapes
+    //The model passed has to be made up of tetrahedrons already
+    VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe, btVector3 startingPosition) : pe(pe) { //Will have to generalize to other shapes
         tetrahedronsModelsVector.push_back(tetrahedronModel);
-
-        std::set<btVector3> uniqueVertices;
+        
+        std::set<btVector3, btVector3Comparator> uniqueVertices;
         uniqueVerticesFromModel(uniqueVertices, tetrahedronModel);
 
-        btRigidBody* tetraRigidbody = pe.generateTetrahedronRigidbody(
-            cubePositions[0], // Use cube position as starting position
-            uniqueVertices,
-            btVector3(1.0f, 1.0f, 1.0f)
-        );
+        for (auto& meshEntry : meshToVertices) {
+            Tetrahedron tetra;
+            generateTetraedronFacetsFromMesh(tetra, meshEntry.first);
+            tetra.allSingularVertices = meshEntry.second;
 
-        Tetrahedron tetra;
-        generateTetraedronFacetsFromMesh(tetra, tetrahedronModel->meshes[0]);
-        tetra.allSingularVertices = uniqueVertices;
-        tetra.verticesAsSingleArr = convertVertexVectorToFlatFloatArr(tetrahedronModel->meshes[0].vertices);
-        tetra.VAO = createTetrahedronVAO(tetra);
-        tetraToVAO[tetraRigidbody] = tetra.VAO;
-        rigidbodyToTetra[tetraRigidbody] = tetra;
-        tetraRigidbodies.insert(tetraRigidbody);
-        pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
+
+            std::set<Vertex> toFill;
+            for (auto& el : meshEntry.second) {
+                toFill.insert(btVectorToVertex(el));
+            }
+            std::vector<Vertex> v(toFill.begin(), toFill.end());
+
+            tetra.verticesAsSingleArr = convertVertexVectorToFlatFloatArr(v);
+            tetra.VAO = createTetrahedronVAO(tetra);
+
+            btRigidBody* meshRigidbody = pe.generateMeshRigidbody(
+                startingPosition, // Use cube position as starting position
+                tetra.allSingularVertices,
+                btVector3(1.0f, 1.0f, 1.0f)
+            );
+
+            rigidbodyToVAO[meshRigidbody] = tetra.VAO;
+            rigidbodyToTetra[meshRigidbody] = tetra;
+            tetraRigidbodies.insert(meshRigidbody);
+            pe.dynamicsWorld->addRigidBody(meshRigidbody, 1, 1);
+        }
+
     };
 
     void insertOnePoint(btVector3 t, btRigidBody* toFlip, btVector3 startPos) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
-        std::vector<Tetrahedron> newTetrahedrons = flip14(t, rigidbodyToTetra[toFlip]);
-        flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
+        Tetrahedron tetraFromWalk = stochasticWalk(tetrahedrons, t);
+
+        std::vector<Tetrahedron> newTetrahedrons = flip14(t, tetraFromWalk);
+        
+        //flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
         //I now remove the original container rigidbody from the structs, as I will add the tetrahedrons in which it is divided
         //the idea is correct but popping the last element makes no sense; I should use a gerarchical data struct (nested map), so that I have 
         glm::vec3 parentColor = rigidbodyToTetra[toFlip].color;
@@ -76,13 +92,13 @@ std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
 
             tetrahedrons.push_back(newTetrahedron);
 
-            btRigidBody* tetraRigidbody = pe.generateTetrahedronRigidbody(
+            btRigidBody* tetraRigidbody = pe.generateMeshRigidbody(
                 startPos, // Use cube position as starting position
                 newTetrahedron.allSingularVertices,
                 btVector3(1.0f, 1.0f, 1.0f)
             );
 
-            tetraToVAO[tetraRigidbody] = newTetrahedron.VAO;
+            rigidbodyToVAO[tetraRigidbody] = newTetrahedron.VAO;
             rigidbodyToTetra[tetraRigidbody] = newTetrahedron;
             tetraRigidbodies.insert(tetraRigidbody);
             pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
@@ -534,8 +550,21 @@ private:
 
     PhysicsEngineAbstraction pe;
 
-    void uniqueVerticesFromModel(std::set<btVector3>& uniqueVertices, Model* model) {
-        for (auto& vertex : model->meshes[0].vertices) {
+    void uniqueVerticesFromModel(std::set<btVector3, btVector3Comparator>& uniqueVertices, Model* model) {
+        
+        for (Mesh mesh : model->meshes) {
+            std::set<btVector3, btVector3Comparator> meshVertices;
+            uniqueVerticesFromMesh(meshVertices, mesh);
+
+            uniqueVertices.insert(meshVertices.begin(), meshVertices.end());
+
+            meshToVertices[mesh] = meshVertices;
+        }
+    }
+
+    void uniqueVerticesFromMesh(std::set<btVector3, btVector3Comparator>& uniqueVertices, Mesh mesh) {
+
+        for (auto& vertex : mesh.vertices) {
             btVector3 v = fromVertexToBtVector3(vertex);
             if (uniqueVertices.count(v) != 1) { //If not found add it
                 uniqueVertices.insert(v);
@@ -544,7 +573,7 @@ private:
     }
 
     void generateTetraedronFacetsFromMesh(Tetrahedron& tetra, Mesh tetraModel) {
-        for (int facet = 0; facet < tetraModel.indices.size() / 3; facet++) { //I consider the faces to be triangular //this for should be from [0 to 3]
+        for (int facet = 0; facet < tetraModel.indices.size() / MESH_FACE_VERTICES; facet++) { //I consider the faces to be triangular //this for should be from [0 to 3]
 
             TriangleFacet tetrahedronFacet;
 
@@ -565,18 +594,6 @@ private:
             verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), colorAsFloatVec.begin(), colorAsFloatVec.end());
         }
         vectorToFloatArray(verticeAndColorssAsSingleArr, vertices);
-    }
-
-    Vertex btVectorToVertex(btVector3 v) {
-        return { { (float)v.getX(), (float)v.getY(), (float)v.getZ() }};
-    }
-
-    std::vector<float> generateVerticesArrayFromBtVector3(btVector3 v) {
-        return { (float)v.getX(), (float)v.getY(), (float)v.getZ() };
-    }
-
-    btVector3 fromVertexToBtVector3(Vertex v) {
-        return btVector3(v.Position.x, v.Position.y, v.Position.z);
     }
 
     btVector3 getOppositeVerticeToFacet(Tetrahedron tetra, TriangleFacet facet) {
@@ -604,10 +621,6 @@ private:
             }
         }
         return false;
-    }
-
-    bool areBtVector3Equal(btVector3 v1, btVector3 v2) {
-        return v1.getX() == v2.getX() && v1.getY() == v2.getY() && v1.getZ() == v2.getZ();
     }
 
     unsigned int createTetrahedronVAO(Tetrahedron tetra) {

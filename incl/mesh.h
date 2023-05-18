@@ -9,6 +9,8 @@
 #include "shader.h"
 #include <string>
 #include <vector>
+#include <set>
+#include <map>
 
 using namespace std;
 
@@ -29,6 +31,22 @@ struct Vertex {
     int m_BoneIDs[MAX_BONE_INFLUENCE];
     //weights from each bone
     float m_Weights[MAX_BONE_INFLUENCE];
+
+    bool operator==(const Vertex& v) const noexcept
+    {
+        // logic here
+        return 
+            this->Position.x == v.Position.x && 
+            this->Position.y == v.Position.y &&
+            this->Position.z == v.Position.z; // for example
+    }
+
+    bool operator<(const Vertex& v) const noexcept
+    {
+        // logic here
+        return
+            this->Position.x + this->Position.y + this->Position.z < v.Position.x + v.Position.y + v.Position.z; // for example
+    }
 };
 
 struct Texture {
@@ -36,6 +54,8 @@ struct Texture {
     string type;
     string path;
 };
+
+
 
 class Mesh {
 public:
@@ -92,7 +112,7 @@ public:
 
         // always good practice to set everything back to defaults once configured.
         glActiveTexture(GL_TEXTURE0);
-    }
+    } 
 
 private:
     // render data 
@@ -143,4 +163,17 @@ private:
         glBindVertexArray(0);
     }
 };
+
+struct MeshComparator {
+    bool operator()(const Mesh& mesh1, const Mesh& mesh2) const {
+        // Compare vertices
+        if (mesh1.vertices != mesh2.vertices) {
+            return mesh1.vertices < mesh2.vertices;
+        }
+
+        // Compare indices
+        return mesh1.indices < mesh2.indices;
+    }
+};
+
 #endif

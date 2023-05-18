@@ -180,7 +180,7 @@ btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
     return center;
 }
 
-btVector3 getSphereCenter(std::set<btVector3> points) {
+btVector3 getSphereCenter(std::set<btVector3, btVector3Comparator> points) {
 #define U(a,b,c,d,e,f,g,h) (a.z - b.z)*(c.x*d.y - d.x*c.y) - (e.z - f.z)*(g.x*h.y - h.x*g.y)
 #define D(x,y,a,b,c) (a.x*(b.y-c.y) + b.x*(c.y-a.y) + c.x*(a.y-b.y))
 #define E(x,y) ((ra*D(x,y,b,c,d) - rb*D(x,y,c,d,a) + rc*D(x,y,d,a,b) - rd*D(x,y,a,b,c)) / uvw)
@@ -366,6 +366,25 @@ std::vector<btVector3> convertToVector(std::set<btVector3> s)
     return v;
 }
 
+std::vector<float> convertVertexVectorToFlatFloatArr(std::set<Vertex> allVertices) {
+    std::vector<Vertex> v(allVertices.begin(), allVertices.end());
+    return convertVertexVectorToFlatFloatArr(v);
+}
+
+std::vector<float> convertVertexVectorToFlatFloatArr(std::set<btVector3, btVector3Comparator> allVertices) {
+    std::set<Vertex> temp = btVectorSetToVertexSet(allVertices);
+    std::vector<Vertex> v(temp.begin(), temp.end());
+    return convertVertexVectorToFlatFloatArr(v);
+}
+
+std::set<Vertex> btVectorSetToVertexSet(std::set<btVector3, btVector3Comparator> allVertices) {
+    std::set<Vertex> toFill;
+    for (auto& el : allVertices) {
+        toFill.insert(btVectorToVertex(el));
+    }
+    return toFill;
+}
+
 std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices) {
     std::vector<float> allVerticesAsFloatArr;
     for (auto& vertice : allVertices) {
@@ -373,6 +392,18 @@ std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVert
         allVerticesAsFloatArr.insert(allVerticesAsFloatArr.end(), vectorComponents.begin(), vectorComponents.end());
     }
     return allVerticesAsFloatArr;
+}
+
+Vertex btVectorToVertex(btVector3 v) {
+    return { { (float)v.getX(), (float)v.getY(), (float)v.getZ() } };
+}
+
+std::vector<float> generateVerticesArrayFromBtVector3(btVector3 v) {
+    return { (float)v.getX(), (float)v.getY(), (float)v.getZ() };
+}
+
+btVector3 fromVertexToBtVector3(Vertex v) {
+    return btVector3(v.Position.x, v.Position.y, v.Position.z);
 }
 
 void vectorToFloatArray(const std::vector<float>& vec, float arr[]) {
@@ -385,14 +416,6 @@ std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
     return { (float)v.Position.x, (float)v.Position.y, (float)v.Position.z };
 }
 
-
-<<<<<<< HEAD
-=======
-
-
-
-
-
-
-
->>>>>>> 66403d6d8670fe2e5927e2a04efc5d0e87d439f4
+bool areBtVector3Equal(btVector3 v1, btVector3 v2) {
+    return v1.getX() == v2.getX() && v1.getY() == v2.getY() && v1.getZ() == v2.getZ();
+}
