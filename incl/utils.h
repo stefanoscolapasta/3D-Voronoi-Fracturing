@@ -43,6 +43,7 @@ void subMatrix(float mat[N][N], float temp[N][N], int p, int q, int n);
 btVector3 getTetrahedronCenter(Tetrahedron tetrahedron);
 bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P);
 
+void fillVertexData(std::vector<float> verticesAsSingleArr, glm::vec3 color, float vertices[]);
 
 //TETRAS
 bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f);

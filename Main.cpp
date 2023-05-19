@@ -25,7 +25,6 @@ bool checkForCollisionBetweenRbsAB(PhysicsEngineAbstraction pe, btRigidBody* rig
 
 int main()
 {
-
     int i, j;
     // glfw: initialize and configure
     // ------------------------------
@@ -152,7 +151,7 @@ int main()
             glBindVertexArray(vorFrac.tetraToVAO[initialTetra]);
             ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(initialTetra));
             //Here we need the VAO for each tetrahedron as their shape is not always the same
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+            glDrawArrays(GL_LINE_STRIP, 0, 36);
         }
 
           

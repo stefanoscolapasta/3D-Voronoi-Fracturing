@@ -162,9 +162,23 @@ glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, g
 }
 
 
+//CONVERSIONS
+
+
 glm::vec3 convertToVec3(btVector3 vec) {
     glm::vec3 vector = glm::vec3(vec.getX(), vec.getY(), vec.getZ());
     return vector;
+}
+
+
+void fillVertexData(std::vector<float> verticesAsSingleArr, glm::vec3 color, float vertices[]) {
+    std::vector<float> colorAsFloatVec = { color.r, color.g, color.b };
+    std::vector<float> verticeAndColorssAsSingleArr;
+    for (int i = 0; i < verticesAsSingleArr.size(); i += 3) {
+        verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), verticesAsSingleArr.begin() + i, verticesAsSingleArr.begin() + (i + 3));
+        verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), colorAsFloatVec.begin(), colorAsFloatVec.end());
+    }
+    vectorToFloatArray(verticeAndColorssAsSingleArr, vertices);
 }
 
 
@@ -386,8 +400,6 @@ std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
 }
 
 
-<<<<<<< HEAD
-=======
 
 
 
@@ -395,4 +407,3 @@ std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
 
 
 
->>>>>>> 66403d6d8670fe2e5927e2a04efc5d0e87d439f4
