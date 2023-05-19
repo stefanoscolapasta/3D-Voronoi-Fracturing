@@ -59,9 +59,22 @@ std::vector<float> generateVerticesArrayFromVertex(Vertex v);
 
 struct btVector3Comparator {
     bool operator()(const btVector3& v1, const btVector3& v2) const {
-        if (v1.getX() + v1.getY() + v1.getZ() < v2.getX() + v2.getY() + v2.getZ())
+        if (v1.getX() < v2.getX())
             return true;
-        return false;
+        if (v1.getX() > v2.getX())
+            return false;
+
+        if (v1.getY() < v2.getY())
+            return true;
+        if (v1.getY() > v2.getY())
+            return false;
+
+        if (v1.getZ() < v2.getZ())
+            return true;
+        if (v1.getZ() > v2.getZ())
+            return false;
+
+        return false; // The vectors are equal
     }
 };
 
