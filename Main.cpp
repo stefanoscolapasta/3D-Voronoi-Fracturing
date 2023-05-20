@@ -76,12 +76,16 @@ int main()
 
 
     Model* tetrahedronForTest = new Model("geom/tetrahedron.obj");
+    Model* cubeForTest = new Model("cube/cube.obj");
+    std::vector<btVector3> cubeModelVertices;
+    generateCubeVerticesFromMesh(cubeForTest->meshes[0], cubeModelVertices);
 
     PhysicsEngineAbstraction pe;
     VoronoiFracturing vorFrac(tetrahedronForTest, pe);
-
+    vorFrac.createTetrahedronFromCube(cubeModelVertices);
+  
+   
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);
-
     btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
     pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
 

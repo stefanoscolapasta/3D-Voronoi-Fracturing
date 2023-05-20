@@ -31,49 +31,78 @@ struct DelauneyEdge {
 };
 
 
-
 struct DelauneyEdgeComparator {
 	bool operator()(const DelauneyEdge& e1, const DelauneyEdge& e2) const {
-		float sum1 = e1.v1.getX() + e1.v1.getY() + e1.v1.getZ();
-		float sum2 = e2.v1.getX() + e2.v1.getY() + e2.v1.getZ();
-
-		if (sum1 < sum2)
+		if (e1.v1.getX() < e2.v1.getX())
 			return true;
-		if (sum1 > sum2)
+		if (e1.v1.getX() > e2.v1.getX())
 			return false;
 
-		// If the sums are equal, compare the second vertices
-		float sum3 = e1.v2.getX() + e1.v2.getY() + e1.v2.getZ();
-		float sum4 = e2.v2.getX() + e2.v2.getY() + e2.v2.getZ();
-
-		if (sum3 < sum4)
+		if (e1.v1.getY() < e2.v1.getY())
 			return true;
+		if (e1.v1.getY() > e2.v1.getY())
+			return false;
 
-		return false;
+		if (e1.v1.getZ() < e2.v1.getZ())
+			return true;
+		if (e1.v1.getZ() > e2.v1.getZ())
+			return false;
+
+		if (e1.v2.getX() < e2.v2.getX())
+			return true;
+		if (e1.v2.getX() > e2.v2.getX())
+			return false;
+
+		if (e1.v2.getY() < e2.v2.getY())
+			return true;
+		if (e1.v2.getY() > e2.v2.getY())
+			return false;
+
+		if (e1.v2.getZ() < e2.v2.getZ())
+			return true;
+		if (e1.v2.getZ() > e2.v2.getZ())
+			return false;
+
+		return false; // The edges are equal
 	}
 };
-
 
 struct VoronoiEdgeComparator {
 	bool operator()(const VoronoiEdge& e1, const VoronoiEdge& e2) const {
-		float sum1 = e1.v1.getX() + e1.v1.getY() + e1.v1.getZ();
-		float sum2 = e2.v1.getX() + e2.v1.getY() + e2.v1.getZ();
-
-		if (sum1 < sum2)
+		if (e1.v1.getX() < e2.v1.getX())
 			return true;
-		if (sum1 > sum2)
+		if (e1.v1.getX() > e2.v1.getX())
 			return false;
 
-		// If the sums are equal, compare the second vertices
-		float sum3 = e1.v2.getX() + e1.v2.getY() + e1.v2.getZ();
-		float sum4 = e2.v2.getX() + e2.v2.getY() + e2.v2.getZ();
-
-		if (sum3 < sum4)
+		if (e1.v1.getY() < e2.v1.getY())
 			return true;
+		if (e1.v1.getY() > e2.v1.getY())
+			return false;
 
-		return false;
+		if (e1.v1.getZ() < e2.v1.getZ())
+			return true;
+		if (e1.v1.getZ() > e2.v1.getZ())
+			return false;
+
+		if (e1.v2.getX() < e2.v2.getX())
+			return true;
+		if (e1.v2.getX() > e2.v2.getX())
+			return false;
+
+		if (e1.v2.getY() < e2.v2.getY())
+			return true;
+		if (e1.v2.getY() > e2.v2.getY())
+			return false;
+
+		if (e1.v2.getZ() < e2.v2.getZ())
+			return true;
+		if (e1.v2.getZ() > e2.v2.getZ())
+			return false;
+
+		return false; // The edges are equal
 	}
 };
+
 
 btVector3 getVoronoiMeshCenter(VoronoiMesh mesh) {
 	btVector3 center(0.0f, 0.0f, 0.0f);

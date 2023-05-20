@@ -46,6 +46,8 @@ bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P);
 void fillVertexData(std::vector<float> verticesAsSingleArr, glm::vec3 color, float vertices[]);
 
 //TETRAS
+void generateCubeVerticesFromMesh(Mesh cubeModel, std::vector<btVector3>& cubeVertices);
+Tetrahedron CreateTetrahedronAroundCube(std::vector<btVector3> meshVertices, glm::vec3 meshColor);
 bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f);
 bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2);
 bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point);
@@ -56,6 +58,9 @@ std::vector<btVector3> convertToVector(std::set<btVector3> v);
 std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices);
 void vectorToFloatArray(const std::vector<float>& vec, float arr[]);
 std::vector<float> generateVerticesArrayFromVertex(Vertex v);
+Vertex btVectorToVertex(btVector3 v);
+std::vector<float> generateVerticesArrayFromBtVector3(btVector3 v);
+btVector3 fromVertexToBtVector3(Vertex v);
 
 struct btVector3Comparator {
     bool operator()(const btVector3& v1, const btVector3& v2) const {
@@ -77,7 +82,6 @@ struct btVector3Comparator {
         return false; // The vectors are equal
     }
 };
-
 
 
 #endif
