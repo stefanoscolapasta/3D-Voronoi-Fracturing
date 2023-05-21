@@ -2,15 +2,29 @@
 #include <bullet/LinearMath/btVector3.h>
 #include <set>
 
+struct btVector3Comparator {
+    bool operator()(const btVector3& v1, const btVector3& v2) const {
+        if (v1.getX() < v2.getX())
+            return true;
+        if (v1.getX() > v2.getX())
+            return false;
+
+        if (v1.getY() < v2.getY())
+            return true;
+        if (v1.getY() > v2.getY())
+            return false;
+
+        if (v1.getZ() < v2.getZ())
+            return true;
+        if (v1.getZ() > v2.getZ())
+            return false;
+
+        return false; // The vectors are equal
+    }
+};
 
 struct TriangleFacet {
     std::vector<btVector3> vertices;
-};
-
-struct btVector3Comparator {
-    bool operator()(const btVector3& v1, const btVector3& v2) const {
-        return v1.getX() + v1.getY() + v1.getZ() < v2.getX() + v2.getY() + v2.getZ();
-    }
 };
 
 struct Tetrahedron {
@@ -45,6 +59,4 @@ struct TriangleFacetComparator {
         return count == 3;
     }
 };
-
-
 

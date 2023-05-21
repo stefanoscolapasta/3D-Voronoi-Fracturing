@@ -1,5 +1,5 @@
 #pragma once
-#ifndef UTILS_H
+#ifndef UTILS_H 
 #define UTILS_H
 #include <bullet/LinearMath/btVector3.h>
 #include <GLFW/glfw3.h>
@@ -9,7 +9,6 @@
 #include "mesh.h"
 #include "camera.h"
 #include "tetrahedron.h"
-
 
 #define N 4
 #define SCR_WIDTH 800
@@ -43,8 +42,11 @@ void subMatrix(float mat[N][N], float temp[N][N], int p, int q, int n);
 btVector3 getTetrahedronCenter(Tetrahedron tetrahedron);
 bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P);
 
+void fillVertexData(std::vector<float> verticesAsSingleArr, glm::vec3 color, float vertices[]);
 
 //TETRAS
+void generateCubeVerticesFromMesh(Mesh cubeModel, std::vector<btVector3>& cubeVertices);
+Tetrahedron CreateTetrahedronAroundCube(std::vector<btVector3> meshVertices, glm::vec3 meshColor);
 bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f);
 bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2);
 bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point);
@@ -61,13 +63,11 @@ std::vector<float> generateVerticesArrayFromVertex(Vertex v);
 std::vector<float> generateVerticesArrayFromBtVector3(btVector3 v);
 Vertex btVectorToVertex(btVector3 v);
 btVector3 fromVertexToBtVector3(Vertex v);
-
 std::set<Vertex> btVectorSetToVertexSet(std::set<btVector3, btVector3Comparator> allVertices);
-
 bool areBtVector3Equal(btVector3 v1, btVector3 v2);
 
-
-
-
+Vertex btVectorToVertex(btVector3 v);
+std::vector<float> generateVerticesArrayFromBtVector3(btVector3 v);
+btVector3 fromVertexToBtVector3(Vertex v);
 
 #endif

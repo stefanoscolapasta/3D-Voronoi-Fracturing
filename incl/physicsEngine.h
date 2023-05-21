@@ -98,7 +98,7 @@ public:
 		meshRigidBody->setWorldTransform(startTransform);
 		return meshRigidBody;
 	}
-	
+
 
 	btRigidBody* generateVoronoiRigidbody(btVector3 startingPosition, std::set<btVector3, btVector3Comparator> voronoiVertices, btVector3 scaleFactor) {
 		btTransform startTransform;
@@ -133,7 +133,4 @@ public:
 		fillMat4(model, matr);
 		return model;
 	}
-
-
-
 };
