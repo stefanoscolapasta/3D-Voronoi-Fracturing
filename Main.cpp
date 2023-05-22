@@ -76,13 +76,13 @@ int main()
 
 
     Model* tetrahedronForTest = new Model("geom/tetrahedron.obj");
-    Model* cubeForTest = new Model("cube/cube.obj");
-    std::vector<btVector3> cubeModelVertices;
-    generateCubeVerticesFromMesh(cubeForTest->meshes[0], cubeModelVertices);
+    Model* monkeyForTest = new Model("monkey/monkey.obj");
+    std::vector<btVector3> monkeyModelVertices;
+    generateVerticesFromMesh(monkeyForTest->meshes[0], monkeyModelVertices);
 
     PhysicsEngineAbstraction pe;
     VoronoiFracturing vorFrac(tetrahedronForTest, pe);
-    vorFrac.createTetrahedronFromCube(cubeModelVertices);
+    vorFrac.createTetrahedronFromMesh(monkeyModelVertices);
   
    
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);

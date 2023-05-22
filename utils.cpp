@@ -380,23 +380,21 @@ void CalculateBoundingBox(std::vector<btVector3> meshVertices, btVector3& minCoo
     }
 }
 
-
-// Function to create a tetrahedron that includes the cubic mesh
-Tetrahedron CreateTetrahedronAroundCube(std::vector<btVector3> meshVertices, glm::vec3 meshColor) {
+Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> shapeVertices, glm::vec3 shapeColor) {
     Tetrahedron tetrahedron;
 
-    // Calculate the bounding box of the cube
+    // Calculate the bounding box of the shape
     btVector3 minCoords, maxCoords;
-    CalculateBoundingBox(meshVertices, minCoords, maxCoords);
+    CalculateBoundingBox(shapeVertices, minCoords, maxCoords);
 
-    // Determine the center of the cube
+    // Determine the center of the shape
     btVector3 center = (minCoords + maxCoords) * 0.5f;
 
-    // Calculate the size of the cube (length of its edge)
-    float cubeSize = (maxCoords - minCoords).length();
+    // Calculate the size of the shape (length of its diagonal)
+    float shapeSize = (maxCoords - minCoords).length();
 
     // Calculate the size of the tetrahedron (edge length)
-    float tetrahedronSize = cubeSize * std::sqrt(6.0f);
+    float tetrahedronSize = shapeSize * std::sqrt(6.0f);
 
     // Calculate the scale factor to transform the unit tetrahedron to the desired size
     float scaleFactor = tetrahedronSize / std::sqrt(1.5f);
@@ -407,13 +405,14 @@ Tetrahedron CreateTetrahedronAroundCube(std::vector<btVector3> meshVertices, glm
     btVector3 vertex3(center.x(), center.y() + scaleFactor, center.z() - scaleFactor);
     btVector3 vertex4(center.x(), center.y(), center.z() + scaleFactor);
 
-    tetrahedron.color = meshColor;
+    tetrahedron.color = shapeColor;
 
     tetrahedron.facets.resize(4);
     tetrahedron.facets[0].vertices = { vertex1, vertex2, vertex3 };
     tetrahedron.facets[1].vertices = { vertex1, vertex2, vertex4 };
     tetrahedron.facets[2].vertices = { vertex1, vertex3, vertex4 };
     tetrahedron.facets[3].vertices = { vertex2, vertex3, vertex4 };
+
     // Populate the vertices as a single array for rendering
     tetrahedron.verticesAsSingleArr.clear();
     for (const auto& facet : tetrahedron.facets) {
@@ -425,24 +424,23 @@ Tetrahedron CreateTetrahedronAroundCube(std::vector<btVector3> meshVertices, glm
     }
 
     std::set<btVector3, btVector3Comparator> uniqueVertices;
-    for (auto & facet : tetrahedron.facets) {
-        for (auto & vertex : facet.vertices) {
-            if (uniqueVertices.find(vertex) == uniqueVertices.end()) { //If not found add it
+    for (auto& facet : tetrahedron.facets) {
+        for (auto& vertex : facet.vertices) {
+            if (uniqueVertices.find(vertex) == uniqueVertices.end()) { // If not found, add it
                 uniqueVertices.insert(vertex);
             }
         }
     }
 
-
-    tetrahedron.allSingularVertices =std::set<btVector3>( uniqueVertices.begin(), uniqueVertices.end());
+    tetrahedron.allSingularVertices = std::set<btVector3>(uniqueVertices.begin(), uniqueVertices.end());
     return tetrahedron;
 }
 
-void generateCubeVerticesFromMesh(Mesh cubeModel, std::vector<btVector3>& cubeVertices) {
+void generateVerticesFromMesh(Mesh meshModel, std::vector<btVector3>& meshVertices) {
     std::vector<Vertex> vertices;
 
-    for (auto& index : cubeModel.indices) {
-        Vertex vertex = cubeModel.vertices[index];
+    for (auto& index : meshModel.indices) {
+        Vertex vertex = meshModel.vertices[index];
         vertices.push_back(vertex);
     }
 
@@ -453,10 +451,10 @@ void generateCubeVerticesFromMesh(Mesh cubeModel, std::vector<btVector3>& cubeVe
             uniqueVertices.insert(convertedVertex);
     }
 
-    cubeVertices.reserve(uniqueVertices.size());
+    meshVertices.reserve(uniqueVertices.size());
 
     for (auto& vertex : uniqueVertices) {
-        cubeVertices.push_back(vertex);
+        meshVertices.push_back(vertex);
     }
 
 }
