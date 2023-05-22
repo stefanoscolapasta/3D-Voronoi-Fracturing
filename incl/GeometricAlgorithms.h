@@ -32,10 +32,10 @@ public:
 
 
 
-std::vector<btRigidBody*> vorRigidBodies;
-std::map<btRigidBody*, unsigned int> vorToVAO;
-std::map<btRigidBody*, int> vorToNumVertices;
-std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
+    std::vector<btRigidBody*> vorRigidBodies;
+    std::map<btRigidBody*, unsigned int> vorToVAO;
+    std::map<btRigidBody*, int> vorToNumVertices;
+    std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
 
     VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe) : pe(pe) { //Will have to generalize to other shapes
         tetrahedronsModelsVector.push_back(tetrahedronModel);
@@ -61,8 +61,9 @@ std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
     };
 
     void insertOnePoint(btVector3 t, btRigidBody* toFlip, btVector3 startPos) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
+        
         std::vector<Tetrahedron> newTetrahedrons = flip14(t, rigidbodyToTetra[toFlip]);
-        //flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
+
         //I now remove the original container rigidbody from the structs, as I will add the tetrahedrons in which it is divided
         //the idea is correct but popping the last element makes no sense; I should use a gerarchical data struct (nested map), so that I have 
         glm::vec3 parentColor = rigidbodyToTetra[toFlip].color;
@@ -319,7 +320,7 @@ std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
         bool end = false;
         TriangleFacet f;
         while (!end) {
-            verifyNeighbours(tetras, f, &previous, &t, p);
+            verifyNeighbours(tetras, f, &previous, &t, p, end);
         }
 
         return t;
@@ -350,7 +351,7 @@ std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
 
     }
 
-    void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p) {
+    void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p, bool &end) {
         int randomIndex_f = std::rand() % 3; //random index from 0 to 2 - every tetra has 4 fixed facets
         f = t->facets[randomIndex_f];
         std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t);
@@ -424,14 +425,14 @@ std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
                         *t = neighbour_through_f;
                     }
                 }
+                else
+                    end = true;
             }
         }
     }
 
 
     std::vector<VoronoiMesh> convertToVoronoi(std::vector<Tetrahedron> tetras) {
-
-
        
         std::map<btVector3, std::vector<DelauneyEdge>, btVector3Comparator> outgoingEdgesFromVertex;
         std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter;
@@ -483,8 +484,8 @@ std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
 
     }
 
-    void createTetrahedronFromCube(std::vector<btVector3> cubeModelVertices) {
-        Tetrahedron initialTetrahedron = CreateTetrahedronAroundCube(cubeModelVertices, glm::vec3(0.5f, 0.5f, 0.5f));
+    void createTetrahedronFromMesh(std::vector<btVector3> meshModelVertices) {
+        Tetrahedron initialTetrahedron = CreateTetrahedronAroundShape(meshModelVertices, glm::vec3(0.5f, 0.5f, 0.5f));
 
         //override for test
             tetraRigidbodies.erase(tetraRigidbodies.begin(), tetraRigidbodies.end());
@@ -504,6 +505,8 @@ std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
         tetraRigidbodies.insert(tetraRigidbody);
         pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
    }
+
+
 
  
 private:
@@ -561,6 +564,7 @@ private:
         return tetraVAO;
     }
 
+
     //SUPPORTING METHODS FOR VORONOI CONVERSION
     void setupOutgoingEdgesAndCircumcenters(std::map<btVector3, std::vector<DelauneyEdge>, btVector3Comparator>& outgoingEdgesFromVertex, std::map <Tetrahedron, btVector3, TetrahedronComparator>& tetraToCircumcenter, std::vector<Tetrahedron> tetras) {
         for (auto& t : tetras) {
@@ -579,6 +583,7 @@ private:
 
         }
     }
+
 
     std::set<VoronoiEdge, VoronoiEdgeComparator> findUniqueVoronoiEdges(std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter, std::vector<Tetrahedron> tetras) {
         std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges;
