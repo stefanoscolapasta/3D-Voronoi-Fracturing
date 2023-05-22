@@ -5,6 +5,8 @@
 #include <bullet/LinearMath/btVector3.h>
 #include <set>
 
+
+
 struct VoronoiEdge {
 	btVector3 v1;
 	btVector3 v2;
@@ -166,9 +168,9 @@ std::vector<Tetrahedron> getTetrasIncidentToVertex(std::vector<Tetrahedron> tetr
 
 
 btRigidBody* addVoronoiRigidBody(PhysicsEngineAbstraction pe, VoronoiMesh voronoi, btVector3 startingPosition) {
-	btRigidBody* voronoiRigidBody = pe.generateMeshRigidbody(
+		btRigidBody* voronoiRigidBody = pe.generateMeshRigidbody(
 		startingPosition, // Use cube position as starting position
-		std::set<btVector3> (voronoi.allUniqueVertices.begin(), voronoi.allUniqueVertices.end()),
+		std::set<btVector3, btVector3Comparator> (voronoi.allUniqueVertices.begin(), voronoi.allUniqueVertices.end()),
 		btVector3(1.0f, 1.0f, 1.0f)
 	);
 

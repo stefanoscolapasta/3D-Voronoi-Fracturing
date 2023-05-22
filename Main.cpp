@@ -75,16 +75,20 @@ int main()
     // -----------
 
 
-    Model* tetrahedronForTest = new Model("geom/tetrahedron.obj");
-    Model* monkeyForTest = new Model("monkey/monkey.obj");
-    std::vector<btVector3> monkeyModelVertices;
-    generateVerticesFromMesh(monkeyForTest->meshes[0], monkeyModelVertices);
+    Model* tetrahedronForTest = new Model("geom/tetra2.obj");
+
+    PhysicsEngineAbstraction pe;
+    VoronoiFracturing vorFrac(tetrahedronForTest, pe, cubePositions[0]);
+
+    /*/Model * tetrahedronForTest = new Model("geom/tetrahedron.obj");
+    Model* cubeForTest = new Model("cube/cube.obj");
+    std::vector<btVector3> cubeModelVertices;
+    generateCubeVerticesFromMesh(cubeForTest->meshes[0], cubeModelVertices);
 
     PhysicsEngineAbstraction pe;
     VoronoiFracturing vorFrac(tetrahedronForTest, pe);
-    vorFrac.createTetrahedronFromMesh(monkeyModelVertices);
-  
-   
+    vorFrac.createTetrahedronFromCube(cubeModelVertices);*/
+
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);
     btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
     pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
@@ -97,9 +101,11 @@ int main()
     //Callback to use when checking collisions
 
     bool hasCollided = false;
+    //This is used to test the code ---------
+    vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+    //---------------------------------------
     while (!glfwWindowShouldClose(window))
     {
-
 
         //Calculate deltatime
         float currentFrame = glfwGetTime();
@@ -127,15 +133,15 @@ int main()
 
         // UPDATE SIMULATION
 
+
         if (isSimulationStarted()) {
             pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
-
         }
 
         
         if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) {
 
-            vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), initialTetra, initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+            vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
             if (!hasCollided) {
                 pe.dynamicsWorld->removeRigidBody(initialTetra); //And remember to remove it from the physics world
                 pe.dynamicsWorld->removeCollisionObject(initialTetra);
@@ -151,15 +157,17 @@ int main()
                 vorFrac.vorToIndices[vorRigidBody] = mesh.indices;
             }
         }
-        if(!hasCollided){
-            glBindVertexArray(vorFrac.tetraToVAO[initialTetra]);
-            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(initialTetra));
-            //Here we need the VAO for each tetrahedron as their shape is not always the same
-            glDrawArrays(GL_LINE_STRIP, 0, 36);
+
+        if (!hasCollided) {
+            for (auto& rb : vorFrac.tetraRigidbodies) {
+                glBindVertexArray(vorFrac.rigidbodyToVAO[rb]);
+                ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(rb));
+                //Here we need the VAO for each tetrahedron as their shape is not always the same
+                glDrawArrays(GL_TRIANGLES, 0, 36);
+            }
+            
         }
-
-          
-
+  
         for (auto& vorRigidbody : vorFrac.vorRigidBodies) {
             glBindVertexArray(vorFrac.vorToVAO[vorRigidbody]);
             ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(vorRigidbody));
@@ -201,7 +209,7 @@ bool checkForCollisionBetweenRbsAB(PhysicsEngineAbstraction pe, btRigidBody* rig
             //contactManifold->getBody0()->getWorldTransform().getOrigin();
             return true;
         }
-        //... here you can check for obA´s and obB´s user pointer again to see if the collision is alien and bullet and in that case initiate deletion.
+        //... here you can check for obAï¿½s and obBï¿½s user pointer again to see if the collision is alien and bullet and in that case initiate deletion.
     }
     return false;
 }

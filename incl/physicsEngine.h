@@ -3,6 +3,7 @@
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
 #include <set>
+#include "tetrahedron.h"
 
 class PhysicsEngineAbstraction {
 	//TODO: HAVE A .HPP for declaration and a .CPP for the methods' IMPLEMENTATION
@@ -76,7 +77,7 @@ public:
 		return new btRigidBody(groundRigidBodyCI);
 	}
 
-	btRigidBody* generateTetrahedronRigidbody(btVector3 startingPosition, std::set<btVector3> tetrahedronVertices, btVector3 scaleFactor) {
+	btRigidBody* generateMeshRigidbody(btVector3 startingPosition, std::set<btVector3, btVector3Comparator> vertices, btVector3 scaleFactor) {
 
 		btTransform startTransform;
 		startTransform.setIdentity();
@@ -85,17 +86,17 @@ public:
 		btVector3 localInertia(0, 0, 0);
 		btConvexHullShape* shape = new btConvexHullShape();
 
-		for (auto vertex = tetrahedronVertices.begin(); vertex != tetrahedronVertices.end(); ++vertex) {
+		for (auto vertex = vertices.begin(); vertex != vertices.end(); ++vertex) {
 			shape->addPoint(*vertex);
 		}
 
 		shape->setLocalScaling(scaleFactor);
-		btDefaultMotionState* tetrahedronMotionState = new btDefaultMotionState(startTransform);
+		btDefaultMotionState* meshMotionState = new btDefaultMotionState(startTransform);
 		shape->calculateLocalInertia(mass, localInertia);
-		btRigidBody::btRigidBodyConstructionInfo rigidBody(mass, tetrahedronMotionState, shape, localInertia);
-		btRigidBody* tetrahedronRigidBody = new btRigidBody(rigidBody);
-		tetrahedronRigidBody->setWorldTransform(startTransform);
-		return tetrahedronRigidBody;
+		btRigidBody::btRigidBodyConstructionInfo rigidBody(mass, meshMotionState, shape, localInertia);
+		btRigidBody* meshRigidBody = new btRigidBody(rigidBody);
+		meshRigidBody->setWorldTransform(startTransform);
+		return meshRigidBody;
 	}
 
 
@@ -120,9 +121,6 @@ public:
 		return meshRigidBody;
 	}
 
-
-
-
 	glm::mat4 getUpdatedGLModelMatrix(btRigidBody* rb) {
 		// get the transform of the rigid body representing the cube
 		btTransform rbTrans;
@@ -135,7 +133,4 @@ public:
 		fillMat4(model, matr);
 		return model;
 	}
-
-
-
 };

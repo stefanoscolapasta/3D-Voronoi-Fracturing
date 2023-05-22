@@ -35,8 +35,8 @@ struct Vertex {
     bool operator==(const Vertex& v) const noexcept
     {
         // logic here
-        return
-            this->Position.x == v.Position.x &&
+        return 
+            this->Position.x == v.Position.x && 
             this->Position.y == v.Position.y &&
             this->Position.z == v.Position.z; // for example
     }
@@ -112,7 +112,7 @@ public:
 
         // always good practice to set everything back to defaults once configured.
         glActiveTexture(GL_TEXTURE0);
-    }
+    } 
 
 private:
     // render data 

@@ -1,6 +1,6 @@
 #include "incl/utils.h"
 #include <algorithm>
-
+#include<math.h> 
 //OPENGL UTILS
 bool startSimulation = false;
 
@@ -14,6 +14,7 @@ Camera camera(glm::vec3(0.0f, 0.0f, 15.0f));
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
+bool accelerationMultiplier = false;
 
 bool isSimulationStarted() {
     return startSimulation;
@@ -46,15 +47,23 @@ void processInput(GLFWwindow* window)
         glfwSetWindowShouldClose(window, true);
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.ProcessKeyboard(FORWARD, deltaTime);
+        camera.ProcessKeyboard(FORWARD, deltaTime, accelerationMultiplier);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.ProcessKeyboard(BACKWARD, deltaTime);
+        camera.ProcessKeyboard(BACKWARD, deltaTime, accelerationMultiplier);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.ProcessKeyboard(LEFT, deltaTime);
+        camera.ProcessKeyboard(LEFT, deltaTime, accelerationMultiplier);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.ProcessKeyboard(RIGHT, deltaTime);
+        camera.ProcessKeyboard(RIGHT, deltaTime, accelerationMultiplier);
+
     if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
         startSimulation = true;
+    if (glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE)
+        startSimulation = false;
+
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+        accelerationMultiplier = true;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE)
+        accelerationMultiplier = false;
 }
 
 
@@ -171,17 +180,6 @@ glm::vec3 convertToVec3(btVector3 vec) {
 }
 
 
-void fillVertexData(std::vector<float> verticesAsSingleArr, glm::vec3 color, float vertices[]) {
-    std::vector<float> colorAsFloatVec = { color.r, color.g, color.b };
-    std::vector<float> verticeAndColorssAsSingleArr;
-    for (int i = 0; i < verticesAsSingleArr.size(); i += 3) {
-        verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), verticesAsSingleArr.begin() + i, verticesAsSingleArr.begin() + (i + 3));
-        verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), colorAsFloatVec.begin(), colorAsFloatVec.end());
-    }
-    vectorToFloatArray(verticeAndColorssAsSingleArr, vertices);
-}
-
-
 btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
     btVector3 center(0, 0, 0);
 
@@ -194,7 +192,7 @@ btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
     return center;
 }
 
-btVector3 getSphereCenter(std::set<btVector3> points) {
+btVector3 getSphereCenter(std::set<btVector3, btVector3Comparator> points) {
 #define U(a,b,c,d,e,f,g,h) (a.z - b.z)*(c.x*d.y - d.x*c.y) - (e.z - f.z)*(g.x*h.y - h.x*g.y)
 #define D(x,y,a,b,c) (a.x*(b.y-c.y) + b.x*(c.y-a.y) + c.x*(a.y-b.y))
 #define E(x,y) ((ra*D(x,y,b,c,d) - rb*D(x,y,c,d,a) + rc*D(x,y,d,a,b) - rd*D(x,y,a,b,c)) / uvw)
@@ -251,31 +249,32 @@ bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 p) {
     return isInside;
 }
 
-bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point) {
-    // Iterate over each face of the tetrahedron
-    for (auto& facet : tetrahedron.facets) {
-        // Get the three vertices of the face
-        const btVector3& v0 = facet.vertices[0];
-        const btVector3& v1 = facet.vertices[1];
-        const btVector3& v2 = facet.vertices[2];
+bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3 point) {
 
-        // Calculate the normal vector of the face
-        btVector3 normal = (v1 - v0).cross(v2 - v0).normalized();
+    std::set<btVector3, btVector3Comparator> vertices = tetrahedron.allSingularVertices;
+    btVector3 v0 = *std::next(vertices.begin(), 0);
+    btVector3 v1 = *std::next(vertices.begin(), 1);
+    btVector3 v2 = *std::next(vertices.begin(), 2);
+    btVector3 v3 = *std::next(vertices.begin(), 3);
 
-        // Calculate the distance from the origin to the face
-        float distance = -v0.dot(normal);
+    glm::vec3 v0_vec3 = glm::vec3(v0.getX(), v0.getY(), v0.getZ());
+    glm::vec3 v1_vec3 = glm::vec3(v1.getX(), v1.getY(), v1.getZ());
+    glm::vec3 v2_vec3 = glm::vec3(v2.getX(), v2.getY(), v2.getZ());
+    glm::vec3 v3_vec3 = glm::vec3(v3.getX(), v3.getY(), v3.getZ());
+    glm::vec3 p = glm::vec3(point.getX(), point.getY(), point.getZ());
 
-        // Calculate the distance from the point to the plane defined by the face
-        float pointDistance = point.dot(normal) + distance;
+    return SameSide(v0_vec3, v1_vec3, v2_vec3, v3_vec3, p) &&
+        SameSide(v1_vec3, v2_vec3, v3_vec3, v0_vec3, p) &&
+        SameSide(v2_vec3, v3_vec3, v0_vec3, v1_vec3, p) &&
+        SameSide(v3_vec3, v0_vec3, v1_vec3, v2_vec3, p);
+}
 
-        // If the point is on the opposite side of the plane from the tetrahedron, it is outside
-        if (pointDistance < 0) {
-            return false;
-        }
-    }
-
-    // If the point is on the same side of all four faces, it is inside
-    return true;
+bool SameSide(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 p)
+{
+    glm::vec3 normal = glm::cross(v1 - v0, v2 - v0);
+    float dotV4 = glm::dot(normal, v3 - v0);
+    float dotP = glm::dot(normal, p - v0);
+    return signbit(dotV4) == signbit(dotP);
 }
 
 bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f) {
@@ -322,8 +321,8 @@ bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2) {
 }
 
 TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2) {
-    for (auto f1 : t1.facets) {
-        for (auto f2 : t2.facets) {
+    for (auto &f1 : t1.facets) {
+        for (auto &f2 : t2.facets) {
             if (areTriangleFacetsEqual(f1, f2)) {
                 // The facets match, so return f1
                 return f1;
@@ -332,8 +331,6 @@ TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2) {
     }
 
 }
-
-
 
 std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std::vector<Tetrahedron> tetrahedra) {
     std::vector<Tetrahedron> result;
@@ -380,17 +377,19 @@ void CalculateBoundingBox(std::vector<btVector3> meshVertices, btVector3& minCoo
     }
 }
 
-Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> shapeVertices, glm::vec3 shapeColor) {
+
+// Function to create a tetrahedron that includes the mesh
+Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> meshVertices, glm::vec3 meshColor) {
     Tetrahedron tetrahedron;
 
     // Calculate the bounding box of the shape
     btVector3 minCoords, maxCoords;
-    CalculateBoundingBox(shapeVertices, minCoords, maxCoords);
+    CalculateBoundingBox(meshVertices, minCoords, maxCoords);
 
     // Determine the center of the shape
     btVector3 center = (minCoords + maxCoords) * 0.5f;
 
-    // Calculate the size of the shape (length of its diagonal)
+    // Calculate the size of the shape (length of its edge)
     float shapeSize = (maxCoords - minCoords).length();
 
     // Calculate the size of the tetrahedron (edge length)
@@ -405,14 +404,13 @@ Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> shapeVertices, g
     btVector3 vertex3(center.x(), center.y() + scaleFactor, center.z() - scaleFactor);
     btVector3 vertex4(center.x(), center.y(), center.z() + scaleFactor);
 
-    tetrahedron.color = shapeColor;
+    tetrahedron.color = meshColor;
 
     tetrahedron.facets.resize(4);
     tetrahedron.facets[0].vertices = { vertex1, vertex2, vertex3 };
     tetrahedron.facets[1].vertices = { vertex1, vertex2, vertex4 };
     tetrahedron.facets[2].vertices = { vertex1, vertex3, vertex4 };
     tetrahedron.facets[3].vertices = { vertex2, vertex3, vertex4 };
-
     // Populate the vertices as a single array for rendering
     tetrahedron.verticesAsSingleArr.clear();
     for (const auto& facet : tetrahedron.facets) {
@@ -424,15 +422,16 @@ Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> shapeVertices, g
     }
 
     std::set<btVector3, btVector3Comparator> uniqueVertices;
-    for (auto& facet : tetrahedron.facets) {
-        for (auto& vertex : facet.vertices) {
-            if (uniqueVertices.find(vertex) == uniqueVertices.end()) { // If not found, add it
+    for (auto & facet : tetrahedron.facets) {
+        for (auto & vertex : facet.vertices) {
+            if (uniqueVertices.find(vertex) == uniqueVertices.end()) { //If not found add it
                 uniqueVertices.insert(vertex);
             }
         }
     }
 
-    tetrahedron.allSingularVertices = std::set<btVector3>(uniqueVertices.begin(), uniqueVertices.end());
+
+    tetrahedron.allSingularVertices = std::set<btVector3, btVector3Comparator>( uniqueVertices.begin(), uniqueVertices.end());
     return tetrahedron;
 }
 
@@ -470,6 +469,25 @@ std::vector<btVector3> convertToVector(std::set<btVector3> s)
     return v;
 }
 
+std::vector<float> convertVertexVectorToFlatFloatArr(std::set<Vertex> allVertices) {
+    std::vector<Vertex> v(allVertices.begin(), allVertices.end());
+    return convertVertexVectorToFlatFloatArr(v);
+}
+
+std::vector<float> convertVertexVectorToFlatFloatArr(std::set<btVector3, btVector3Comparator> allVertices) {
+    std::set<Vertex> temp = btVectorSetToVertexSet(allVertices);
+    std::vector<Vertex> v(temp.begin(), temp.end());
+    return convertVertexVectorToFlatFloatArr(v);
+}
+
+std::set<Vertex> btVectorSetToVertexSet(std::set<btVector3, btVector3Comparator> allVertices) {
+    std::set<Vertex> toFill;
+    for (auto& el : allVertices) {
+        toFill.insert(btVectorToVertex(el));
+    }
+    return toFill;
+}
+
 std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices) {
     std::vector<float> allVerticesAsFloatArr;
     for (auto& vertice : allVertices) {
@@ -478,17 +496,6 @@ std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVert
     }
     return allVerticesAsFloatArr;
 }
-
-void vectorToFloatArray(const std::vector<float>& vec, float arr[]) {
-    for (size_t i = 0; i < vec.size(); i++) {
-        arr[i] = vec[i];
-    }
-}
-
-std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
-    return { (float)v.Position.x, (float)v.Position.y, (float)v.Position.z };
-}
-
 
 Vertex btVectorToVertex(btVector3 v) {
     return { { (float)v.getX(), (float)v.getY(), (float)v.getZ() } };
@@ -502,10 +509,16 @@ btVector3 fromVertexToBtVector3(Vertex v) {
     return btVector3(v.Position.x, v.Position.y, v.Position.z);
 }
 
+void vectorToFloatArray(const std::vector<float>& vec, float arr[]) {
+    for (size_t i = 0; i < vec.size(); i++) {
+        arr[i] = vec[i];
+    }
+}
 
+std::vector<float> generateVerticesArrayFromVertex(Vertex v) {
+    return { (float)v.Position.x, (float)v.Position.y, (float)v.Position.z };
+}
 
-
-
-
-
-
+bool areBtVector3Equal(btVector3 v1, btVector3 v2) {
+    return v1.getX() == v2.getX() && v1.getY() == v2.getY() && v1.getZ() == v2.getZ();
+}
