@@ -97,9 +97,9 @@ public:
 		tetrahedronRigidBody->setWorldTransform(startTransform);
 		return tetrahedronRigidBody;
 	}
-	
 
-	btRigidBody* generateVoronoiRigidbody(btVector3 startingPosition, std::set<btVector3> voronoiVertices, btVector3 scaleFactor) {
+
+	btRigidBody* generateMeshRigidbody(btVector3 startingPosition, std::set<btVector3> voronoiVertices, btVector3 scaleFactor) {
 		btTransform startTransform;
 		startTransform.setIdentity();
 		startTransform.setOrigin(startingPosition);
