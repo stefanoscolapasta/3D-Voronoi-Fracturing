@@ -78,7 +78,7 @@ public:
 	}
 
 	btRigidBody* generateMeshRigidbody(btVector3 startingPosition, std::set<btVector3, btVector3Comparator> vertices, btVector3 scaleFactor) {
-
+		
 		btTransform startTransform;
 		startTransform.setIdentity();
 		startTransform.setOrigin(startingPosition);
@@ -99,27 +99,6 @@ public:
 		return meshRigidBody;
 	}
 
-
-	btRigidBody* generateMeshRigidbody(btVector3 startingPosition, std::set<btVector3> voronoiVertices, btVector3 scaleFactor) {
-		btTransform startTransform;
-		startTransform.setIdentity();
-		startTransform.setOrigin(startingPosition);
-		btScalar mass(1.0f);
-		btVector3 localInertia(0, 0, 0);
-		btConvexHullShape* shape = new btConvexHullShape();
-
-		for (auto vertex : voronoiVertices) {
-			shape->addPoint(vertex);
-		}
-
-		shape->setLocalScaling(scaleFactor);
-		btDefaultMotionState* meshMotionState = new btDefaultMotionState(startTransform);
-		shape->calculateLocalInertia(mass, localInertia);
-		btRigidBody::btRigidBodyConstructionInfo rigidBody(mass, meshMotionState, shape, localInertia);
-		btRigidBody* meshRigidBody = new btRigidBody(rigidBody);
-		meshRigidBody->setWorldTransform(startTransform);
-		return meshRigidBody;
-	}
 
 	glm::mat4 getUpdatedGLModelMatrix(btRigidBody* rb) {
 		// get the transform of the rigid body representing the cube
