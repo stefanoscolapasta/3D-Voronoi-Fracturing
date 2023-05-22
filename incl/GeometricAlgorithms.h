@@ -78,8 +78,9 @@ public:
 
     void insertOnePoint(btVector3 t, btVector3 startPos) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
         std::vector<Tetrahedron> tetras;
-        for (auto mi = tetraToRigidbody.begin(); mi != tetraToRigidbody.end(); ++mi)
-            tetras.push_back(mi->first);
+
+        for (auto tetraRb = tetraToRigidbody.begin(); tetraRb != tetraToRigidbody.end(); ++tetraRb)
+            tetras.push_back(tetraRb->first);
 
         Tetrahedron tetraFromWalk = stochasticWalk(tetras, t);
 
@@ -336,8 +337,6 @@ public:
         throw std::invalid_argument("Strange, didn't find the opposite vertice to this facet in this tetrahedron");
     }
 
-    //triangles -> tetrahedra
-    //edges -> facets
     Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
         Tetrahedron t = tetras.at(randomIndex_t);
@@ -345,7 +344,9 @@ public:
         bool end = false;
         TriangleFacet f;
 
-        verifyNeighbours(tetras, f, &previous, &t, p);
+        while (!end) {
+            verifyNeighbours(tetras, f, &previous, &t, p, end);
+        }
 
         return t;
     }
@@ -358,8 +359,10 @@ public:
             for (auto& facet : tetra.facets) {
                 for (auto& facetToCompare : t.facets) {
                     if (areTriangleFacetsEqual(facet, facetToCompare)) {
-                        neighbours.insert(tetra);
-                        break;  // Found a shared facet, move to the next tetrahedron
+                        if (tetra.VAO != t.VAO) {
+                            neighbours.insert(tetra);
+                            break;  // Found a shared facet, move to the next tetrahedron
+                        }
                     }
                 }
             }
@@ -375,14 +378,17 @@ public:
 
     }
 
-    void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p) {
-        int randomIndex_f = std::rand() % 3; //random index from 0 to 2 - every tetra has 4 fixed facets
+    void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p, bool& end) {
+        srand(time(NULL));
+        int randomIndex_f = std::rand() % 4; //random index from 0 to 3- every tetra has 4 fixed facets
         f = t->facets[randomIndex_f];
         std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t);
         //check if p is inside one of the neighbours
         bool isPointInNeighbour = false;
         Tetrahedron p_tetra;
         Tetrahedron neighbour_through_f;
+        
+        //for loop to check conditions in the next steps
         for (auto& t : t_neighbours) {
             if (isPointInsideTetrahedron(t, p)) {
                 isPointInNeighbour = true;
@@ -402,6 +408,8 @@ public:
             int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
             //if point is not in the same side of center respect to the facet, the two orientations
             //will have different signs -> negative product
+            // 
+            //this condition means: p 
             if (centerOrientation * pointOrientation < 0) {
                 previous = t;
                 *t = neighbour_through_f;
@@ -449,6 +457,8 @@ public:
                         *t = neighbour_through_f;
                     }
                 }
+                else
+                    end = true;
             }
         }
     }
@@ -505,7 +515,7 @@ public:
     }
 
     void createTetrahedronFromCube(std::vector<btVector3> cubeModelVertices) {
-        Tetrahedron initialTetrahedron = CreateTetrahedronAroundCube(cubeModelVertices, glm::vec3(0.5f, 0.5f, 0.5f));
+        Tetrahedron initialTetrahedron = CreateTetrahedronAroundShape(cubeModelVertices, glm::vec3(0.5f, 0.5f, 0.5f));
 
         //override for test
         tetraRigidbodies.erase(tetraRigidbodies.begin(), tetraRigidbodies.end());

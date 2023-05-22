@@ -168,7 +168,7 @@ std::vector<Tetrahedron> getTetrasIncidentToVertex(std::vector<Tetrahedron> tetr
 
 
 btRigidBody* addVoronoiRigidBody(PhysicsEngineAbstraction pe, VoronoiMesh voronoi, btVector3 startingPosition) {
-		btRigidBody* voronoiRigidBody = pe.generateVoronoiRigidbody(
+		btRigidBody* voronoiRigidBody = pe.generateMeshRigidbody(
 		startingPosition, // Use cube position as starting position
 		std::set<btVector3, btVector3Comparator> (voronoi.allUniqueVertices.begin(), voronoi.allUniqueVertices.end()),
 		btVector3(1.0f, 1.0f, 1.0f)

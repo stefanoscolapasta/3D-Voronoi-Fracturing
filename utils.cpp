@@ -1,6 +1,6 @@
 #include "incl/utils.h"
 #include <algorithm>
-
+#include<math.h> 
 //OPENGL UTILS
 bool startSimulation = false;
 
@@ -249,31 +249,32 @@ bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 p) {
     return isInside;
 }
 
-bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point) {
-    // Iterate over each face of the tetrahedron
-    for (auto& facet : tetrahedron.facets) {
-        // Get the three vertices of the face
-        const btVector3& v0 = facet.vertices[0];
-        const btVector3& v1 = facet.vertices[1];
-        const btVector3& v2 = facet.vertices[2];
+bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3 point) {
 
-        // Calculate the normal vector of the face
-        btVector3 normal = (v1 - v0).cross(v2 - v0).normalized();
+    std::set<btVector3, btVector3Comparator> vertices = tetrahedron.allSingularVertices;
+    btVector3 v0 = *std::next(vertices.begin(), 0);
+    btVector3 v1 = *std::next(vertices.begin(), 1);
+    btVector3 v2 = *std::next(vertices.begin(), 2);
+    btVector3 v3 = *std::next(vertices.begin(), 3);
 
-        // Calculate the distance from the origin to the face
-        float distance = -v0.dot(normal);
+    glm::vec3 v0_vec3 = glm::vec3(v0.getX(), v0.getY(), v0.getZ());
+    glm::vec3 v1_vec3 = glm::vec3(v1.getX(), v1.getY(), v1.getZ());
+    glm::vec3 v2_vec3 = glm::vec3(v2.getX(), v2.getY(), v2.getZ());
+    glm::vec3 v3_vec3 = glm::vec3(v3.getX(), v3.getY(), v3.getZ());
+    glm::vec3 p = glm::vec3(point.getX(), point.getY(), point.getZ());
 
-        // Calculate the distance from the point to the plane defined by the face
-        float pointDistance = point.dot(normal) + distance;
+    return SameSide(v0_vec3, v1_vec3, v2_vec3, v3_vec3, p) &&
+        SameSide(v1_vec3, v2_vec3, v3_vec3, v0_vec3, p) &&
+        SameSide(v2_vec3, v3_vec3, v0_vec3, v1_vec3, p) &&
+        SameSide(v3_vec3, v0_vec3, v1_vec3, v2_vec3, p);
+}
 
-        // If the point is on the opposite side of the plane from the tetrahedron, it is outside
-        if (pointDistance < 0) {
-            return false;
-        }
-    }
-
-    // If the point is on the same side of all four faces, it is inside
-    return true;
+bool SameSide(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 p)
+{
+    glm::vec3 normal = glm::cross(v1 - v0, v2 - v0);
+    float dotV4 = glm::dot(normal, v3 - v0);
+    float dotP = glm::dot(normal, p - v0);
+    return signbit(dotV4) == signbit(dotP);
 }
 
 bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f) {
@@ -377,22 +378,22 @@ void CalculateBoundingBox(std::vector<btVector3> meshVertices, btVector3& minCoo
 }
 
 
-// Function to create a tetrahedron that includes the cubic mesh
-Tetrahedron CreateTetrahedronAroundCube(std::vector<btVector3> meshVertices, glm::vec3 meshColor) {
+// Function to create a tetrahedron that includes the mesh
+Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> meshVertices, glm::vec3 meshColor) {
     Tetrahedron tetrahedron;
 
-    // Calculate the bounding box of the cube
+    // Calculate the bounding box of the shape
     btVector3 minCoords, maxCoords;
     CalculateBoundingBox(meshVertices, minCoords, maxCoords);
 
-    // Determine the center of the cube
+    // Determine the center of the shape
     btVector3 center = (minCoords + maxCoords) * 0.5f;
 
-    // Calculate the size of the cube (length of its edge)
-    float cubeSize = (maxCoords - minCoords).length();
+    // Calculate the size of the shape (length of its edge)
+    float shapeSize = (maxCoords - minCoords).length();
 
     // Calculate the size of the tetrahedron (edge length)
-    float tetrahedronSize = cubeSize * std::sqrt(6.0f);
+    float tetrahedronSize = shapeSize * std::sqrt(6.0f);
 
     // Calculate the scale factor to transform the unit tetrahedron to the desired size
     float scaleFactor = tetrahedronSize / std::sqrt(1.5f);
@@ -434,11 +435,11 @@ Tetrahedron CreateTetrahedronAroundCube(std::vector<btVector3> meshVertices, glm
     return tetrahedron;
 }
 
-void generateCubeVerticesFromMesh(Mesh cubeModel, std::vector<btVector3>& cubeVertices) {
+void generateVerticesFromMesh(Mesh meshModel, std::vector<btVector3>& meshVertices) {
     std::vector<Vertex> vertices;
 
-    for (auto& index : cubeModel.indices) {
-        Vertex vertex = cubeModel.vertices[index];
+    for (auto& index : meshModel.indices) {
+        Vertex vertex = meshModel.vertices[index];
         vertices.push_back(vertex);
     }
 
@@ -449,10 +450,10 @@ void generateCubeVerticesFromMesh(Mesh cubeModel, std::vector<btVector3>& cubeVe
             uniqueVertices.insert(convertedVertex);
     }
 
-    cubeVertices.reserve(uniqueVertices.size());
+    meshVertices.reserve(uniqueVertices.size());
 
     for (auto& vertex : uniqueVertices) {
-        cubeVertices.push_back(vertex);
+        meshVertices.push_back(vertex);
     }
 
 }
