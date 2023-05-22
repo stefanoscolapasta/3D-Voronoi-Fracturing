@@ -115,14 +115,21 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 //<0 -> p is under the plane defined by a, b,c
 // = 0-> p is on the plane defined by a, b,c
 int orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p) {
-    float mat[N][N] = {
-        a.getX(), a.getY(), a.getZ(), 1,
-        b.getX(), b.getY(), b.getZ(), 1,
-        c.getX(), c.getY(), c.getZ(), 1,
-        p.getX(), p.getY(), p.getZ(), 1
-    };
-    return determinantOfMatrix(mat, N);
+    btVector3 facetCenter = (a + b + c) / 3;
+    btVector3 v = p - facetCenter;
 
+    btVector3 edge1 = b - a;
+    btVector3 edge2 = c - a;
+
+    btVector3 normal = edge1.cross(edge2);
+    normal.normalize();
+
+    float vDotPlaneNormal = v.dot(normal);
+    if (vDotPlaneNormal < 0)
+        return -1;
+    else if (vDotPlaneNormal > 0)
+        return 1;
+    return 0;
 }
 
 
@@ -272,9 +279,9 @@ bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3 point) {
 bool SameSide(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 p)
 {
     glm::vec3 normal = glm::cross(v1 - v0, v2 - v0);
-    float dotV4 = glm::dot(normal, v3 - v0);
+    float dotV3 = glm::dot(normal, v3 - v0);
     float dotP = glm::dot(normal, p - v0);
-    return signbit(dotV4) == signbit(dotP);
+    return signbit(dotV3) == signbit(dotP);
 }
 
 bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f) {
