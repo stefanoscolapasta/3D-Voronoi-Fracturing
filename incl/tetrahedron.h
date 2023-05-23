@@ -45,18 +45,19 @@ struct TetrahedronComparator {
 
 struct TriangleFacetComparator {
     bool operator()(const TriangleFacet& f1, const TriangleFacet& f2) const {
-        int count = 0;
-        for (auto& vertix1 : f1.vertices) {
-            for (auto& vertix2 : f2.vertices) {
-                if (vertix1.getX() == vertix2.getX() &&
-                    vertix1.getY() == vertix2.getY() &&
-                    vertix1.getZ() == vertix2.getZ()) 
-                {
-                    count += 1;
-                }
-            }
+        
+        std::set<btVector3, btVector3Comparator> v1;
+        for (btVector3 x : f1.vertices) {
+            v1.insert(x);
         }
-        return count == 3;
+
+        std::set<btVector3, btVector3Comparator> v2;
+        for (btVector3 x : f2.vertices) {
+            v2.insert(x);
+        }
+
+        v1.insert(v2.begin(), v2.end());
+        return v1.size() == 3;
     }
 };
 

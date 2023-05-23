@@ -82,21 +82,21 @@ public:
         for (auto tetraRb = tetraToRigidbody.begin(); tetraRb != tetraToRigidbody.end(); ++tetraRb)
             tetras.push_back(tetraRb->first);
 
-        Tetrahedron tetraFromWalk = stochasticWalk(tetras, t);
+        //Tetrahedron tetraFromWalk = stochasticWalk(tetras, t);
 
-        std::vector<Tetrahedron> newTetrahedrons = flip14(t, tetraFromWalk);
+        std::vector<Tetrahedron> newTetrahedrons = flip23(tetras[0], tetras[1]);
         
         //flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
         //I now remove the original container rigidbody from the structs, as I will add the tetrahedrons in which it is divided
         //the idea is correct but popping the last element makes no sense; I should use a gerarchical data struct (nested map), so that I have 
-        tetraRigidbodies.erase(tetraToRigidbody[tetraFromWalk]);
-        pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[tetraFromWalk]); //And remember to remove it from the physics world
-        rigidbodyToTetra.erase(tetraToRigidbody[tetraFromWalk]);
-        tetraToRigidbody.erase(tetraFromWalk);
+        //tetraRigidbodies.erase(tetraToRigidbody[tetraFromWalk]);
+        //pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[tetraFromWalk]); //And remember to remove it from the physics world
+        //rigidbodyToTetra.erase(tetraToRigidbody[tetraFromWalk]);
+        //tetraToRigidbody.erase(tetraFromWalk);
         
 
         for (auto& newTetrahedron : newTetrahedrons) {
-            newTetrahedron.color = tetraFromWalk.color;;
+            newTetrahedron.color = glm::vec3(1,1,1);
             newTetrahedron.VAO = createTetrahedronVAO(newTetrahedron);
 
             tetrahedrons.push_back(newTetrahedron);
@@ -177,21 +177,22 @@ public:
     }
 
     std::vector<Tetrahedron> flip23(Tetrahedron tetrahedron1, Tetrahedron tetrahedron2) {
-        //I assume the given tetrahedrons are correct and neighbours
-        //I now need to find the facet they share
-        std::map<TriangleFacet, int, TriangleFacetComparator> facets;
-        for (int i = 0; i < tetrahedron1.facets.size() && i < tetrahedron2.facets.size(); i++) {
-            facets[tetrahedron1.facets[i]] += 1;
-            facets[tetrahedron2.facets[i]] += 1;
-        }
-
         bool haveOneSameFacet = false;
         TriangleFacet sameFacet;
 
-        for (std::map<TriangleFacet, int, TriangleFacetComparator>::iterator it = facets.begin(); it != facets.end(); ++it) {
-            if (it->second > 1) {
-                haveOneSameFacet = true;
-                sameFacet = it->first;
+        for (auto& facet1 : tetrahedron1.facets) {
+            std::set<btVector3, btVector3Comparator> s1(facet1.vertices.begin(), facet1.vertices.end());
+            for (auto& facet2 : tetrahedron2.facets) {
+                std::set<btVector3, btVector3Comparator> s2(facet2.vertices.begin(), facet2.vertices.end());
+                s2.insert(s1.begin(), s1.end());
+                if (s2.size() == 3) {
+                    haveOneSameFacet = true;
+                    sameFacet = facet1;
+                    break;
+                }
+            }
+            if (haveOneSameFacet) {
+                break;
             }
         }
 
