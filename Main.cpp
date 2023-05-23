@@ -164,25 +164,25 @@ int main()
                 glBindVertexArray(vorFrac.rigidbodyToVAO[rb]);
                 ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(rb));
                 //Here we need the VAO for each tetrahedron as their shape is not always the same
-                glDrawArrays(GL_LINE_STRIP, 0, 36);
+                glDrawArrays(GL_LINE_STRIP, 0, FACETS_PER_TETRA * VERTICES_PER_TETRA_FACET);
             }
             
         }
   
-        for (auto& vorRigidbody : vorFrac.vorRigidBodies) {
+        /*for (auto& vorRigidbody : vorFrac.vorRigidBodies) {
             glBindVertexArray(vorFrac.vorToVAO[vorRigidbody]);
             ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(vorRigidbody));
             //Here we need the VAO for each tetrahedron as their shape is not always the same
             const int numVertices = vorFrac.vorToNumVertices[vorRigidbody];
             // Draw the mesh using indexed rendering
             glDrawElements(GL_LINE_STRIP, vorFrac.vorToIndices[vorRigidbody].size(), GL_UNSIGNED_INT, 0);
-        }
+        }*/
 
         glBindVertexArray(cubeVAO);
         glm::mat4 model = pe.getUpdatedGLModelMatrix(cubeTerrainRigidbody);
         model = glm::scale(model, glm::vec3(10.0f, 1.0f, 10.0f));
         ourShader.setMat4("model", model);
-        glDrawArrays(GL_LINE_STRIP, 0, 36);
+        glDrawArrays(GL_LINE_STRIP, 0, FACETS_PER_CUBE * VERTICES_PER_CUBE_FACET);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);

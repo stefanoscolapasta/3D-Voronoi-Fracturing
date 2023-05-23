@@ -19,6 +19,10 @@
 #define VERTICES_PER_TETRA_FACET 3
 #define UNIQUE_VERTICES_PER_TETRA 4
 #define MESH_FACE_VERTICES 3
+#define FACETS_PER_CUBE 6
+#define VERTICES_PER_CUBE_FACET 4
+
+#define VERTEX_ATTRIBUTES 2
 
 
 class VoronoiFracturing {
@@ -98,6 +102,7 @@ public:
         
         int position = 1;
         std::vector<Tetrahedron> flipped14s = flip14(getTetrahedronCenter(newTetrahedrons[position]), newTetrahedrons[position]);
+        
         //when performing the flip14 we need to remove the initial tetrahedron that was flipped
         newTetrahedrons.erase(newTetrahedrons.begin() + position);
 
@@ -648,17 +653,17 @@ private:
 
         glBindBuffer(GL_ARRAY_BUFFER, tetraVBO);
         //need to pass this to OpenGL as its simpler to handle strides and stuff
-        float vertices[GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA * 2];
+        float vertices[GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA * VERTEX_ATTRIBUTES];
 
         fillVertexData(tetra.facets, tetra.color, vertices);
 
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
         // position attribute
-        glVertexAttribPointer(0, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)0); // (VERTICES_PER_TETRA_FACET*2) to account for vertex color
+        glVertexAttribPointer(0, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * VERTEX_ATTRIBUTES) * sizeof(float), (void*)0); // (VERTICES_PER_TETRA_FACET*2) to account for vertex color
         glEnableVertexAttribArray(0);
 
-        glVertexAttribPointer(1, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)(3 * sizeof(float)));
+        glVertexAttribPointer(1, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * VERTEX_ATTRIBUTES) * sizeof(float), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
         return tetraVAO;
     }
