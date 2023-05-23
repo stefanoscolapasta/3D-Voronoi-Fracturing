@@ -93,7 +93,6 @@ int main()
     btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
     pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
 
-
     btRigidBody* initialTetra = *(vorFrac.tetraRigidbodies.begin());
     //I added the centroid (kinda)
 
@@ -102,7 +101,7 @@ int main()
 
     bool hasCollided = false;
     //This is used to test the code ---------
-    vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+    vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, -1.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
     //---------------------------------------
     while (!glfwWindowShouldClose(window))
     {
@@ -122,6 +121,8 @@ int main()
 
         // activate shader
         ourShader.use();
+
+        
 
         // pass projection matrix to shader (note that in this case it could change every frame)
         glm::mat4 projection = glm::perspective(glm::radians(getCamera().Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
@@ -163,7 +164,7 @@ int main()
                 glBindVertexArray(vorFrac.rigidbodyToVAO[rb]);
                 ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(rb));
                 //Here we need the VAO for each tetrahedron as their shape is not always the same
-                glDrawArrays(GL_TRIANGLES, 0, 36);
+                glDrawArrays(GL_LINE_STRIP, 0, 36);
             }
             
         }

@@ -83,8 +83,8 @@ public:
             tetras.push_back(tetraRb->first);
 
         //Tetrahedron tetraFromWalk = stochasticWalk(tetras, t);
-
-        std::vector<Tetrahedron> newTetrahedrons = flip23(tetras[0], tetras[1]);
+        
+        std::vector<Tetrahedron> newTetrahedrons = flip23(tetras);
         
         //flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
         //I now remove the original container rigidbody from the structs, as I will add the tetrahedrons in which it is divided
@@ -94,6 +94,21 @@ public:
         //rigidbodyToTetra.erase(tetraToRigidbody[tetraFromWalk]);
         //tetraToRigidbody.erase(tetraFromWalk);
         
+        //After a flip23 or flip32 we need to remove the tetras present before
+        
+        int position = 1;
+        std::vector<Tetrahedron> flipped14s = flip14(getTetrahedronCenter(newTetrahedrons[position]), newTetrahedrons[position]);
+        //when performing the flip14 we need to remove the initial tetrahedron that was flipped
+        newTetrahedrons.erase(newTetrahedrons.begin() + position);
+
+        for (auto& tt : tetras) {
+            tetraRigidbodies.erase(tetraToRigidbody[tt]);
+            pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[tt]); //And remember to remove it from the physics world
+            rigidbodyToTetra.erase(tetraToRigidbody[tt]);
+            tetraToRigidbody.erase(tt);
+        }
+
+        newTetrahedrons.insert(newTetrahedrons.end(), flipped14s.begin(), flipped14s.end());
 
         for (auto& newTetrahedron : newTetrahedrons) {
             newTetrahedron.color = glm::vec3(1,1,1);
@@ -176,13 +191,13 @@ public:
         return newTetrahedrons;
     }
 
-    std::vector<Tetrahedron> flip23(Tetrahedron tetrahedron1, Tetrahedron tetrahedron2) {
+    std::vector<Tetrahedron> flip23(std::vector<Tetrahedron> tetrahedrons) {
         bool haveOneSameFacet = false;
         TriangleFacet sameFacet;
 
-        for (auto& facet1 : tetrahedron1.facets) {
+        for (auto& facet1 : tetrahedrons[0].facets) {
             std::set<btVector3, btVector3Comparator> s1(facet1.vertices.begin(), facet1.vertices.end());
-            for (auto& facet2 : tetrahedron2.facets) {
+            for (auto& facet2 : tetrahedrons[1].facets) {
                 std::set<btVector3, btVector3Comparator> s2(facet2.vertices.begin(), facet2.vertices.end());
                 s2.insert(s1.begin(), s1.end());
                 if (s2.size() == 3) {
@@ -197,8 +212,8 @@ public:
         }
 
         if (haveOneSameFacet) {
-            btVector3 v1 = getOppositeVerticeToFacet(tetrahedron1, sameFacet);
-            btVector3 v2 = getOppositeVerticeToFacet(tetrahedron2, sameFacet);
+            btVector3 v1 = getOppositeVerticeToFacet(tetrahedrons[0], sameFacet);
+            btVector3 v2 = getOppositeVerticeToFacet(tetrahedrons[1], sameFacet);
             std::vector<Tetrahedron> flippedTetrahedrons;
             //Here I create the 3 new tetras
             for (int i = 0; i < 3; i++) {
@@ -206,13 +221,13 @@ public:
                 { v1, v2,  sameFacet.vertices[i % 3]}
                 };
                 TriangleFacet facet2 = {
-                { v1, v2,  sameFacet.vertices[i + 1 % 3]}
+                { v1, v2,  sameFacet.vertices[(i + 1) % 3]}
                 };
                 TriangleFacet facet3 = {
-                { v1, sameFacet.vertices[i % 3], sameFacet.vertices[i + 1 % 3]}
+                { v1, sameFacet.vertices[i % 3], sameFacet.vertices[(i + 1) % 3]}
                 };
                 TriangleFacet facet4 = {
-                { v2, sameFacet.vertices[i % 3], sameFacet.vertices[i + 1 % 3]}
+                { v2, sameFacet.vertices[i % 3], sameFacet.vertices[(i + 1) % 3]}
                 };
 
                 std::vector<TriangleFacet> facets = { facet1, facet2, facet3, facet4 };
@@ -246,7 +261,7 @@ public:
         int found = 0;
         std::vector<btVector3> commonToAll;
 
-        for (std::map<btVector3, int, TriangleFacetComparator>::iterator it = vertices.begin(); it != vertices.end(); ++it) {
+        for (std::map<btVector3, int, btVector3Comparator>::iterator it = vertices.begin(); it != vertices.end(); ++it) {
             if (it->second == 3) {
                 found += 1;
                 commonToAll.push_back(it->first);
@@ -256,7 +271,7 @@ public:
 
         if (haveOne2CommonVertices) {
             //I get all the singular vertices
-            std::set<btVector3> allSingularVerticesAcross3Tetras;
+            std::set<btVector3, btVector3Comparator> allSingularVerticesAcross3Tetras;
             for (auto& tetra : tetrasToFlip) {
                 allSingularVerticesAcross3Tetras.insert(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end());
             }
@@ -331,7 +346,7 @@ public:
 
     btVector3 getOppositeVerticeToFacet(Tetrahedron tetra, TriangleFacet facet){
         for (auto& vertex : tetra.allSingularVertices) {
-            if (std::find(facet.vertices.begin(), facet.vertices.end(), vertex) != facet.vertices.end()) {
+            if (std::find(facet.vertices.begin(), facet.vertices.end(), vertex) == facet.vertices.end()) {
                 return vertex;
             }
         }
@@ -383,7 +398,7 @@ public:
         srand(time(NULL));
         //edge <-> facet
         // triangle <-> tetrahedron
-        int randomIndex_f = std::rand() % 3; //random index from 0 to 2- every tetra has 3 fixed facets
+        int randomIndex_f = std::rand() % 3; //random index from 0 to 2 - every tetra has 3 fixed facets
         f = t->facets[randomIndex_f];
         std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t);
         //check if p is inside one of the neighbours
@@ -415,7 +430,7 @@ public:
         if (centerOrientation * pointOrientation < 0) 
             onTheSameSide = false;
             // TODO EDGE CASE: P LIES ON FACET??
-
+        
         //point p is not neighbour of tetrahedron 
         // // if p is neighbour of tetrahedron through f, it means that the two tetrahedra share f 
             //point p is neighbour of tetrahedron, but not through facet f -> f is not in p's tetrahedron
