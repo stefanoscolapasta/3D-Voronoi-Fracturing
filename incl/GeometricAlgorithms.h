@@ -381,40 +381,47 @@ public:
 
     void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p, bool& end) {
         srand(time(NULL));
-        int randomIndex_f = std::rand() % 4; //random index from 0 to 3- every tetra has 4 fixed facets
+        //edge <-> facet
+        // triangle <-> tetrahedron
+        int randomIndex_f = std::rand() % 3; //random index from 0 to 2- every tetra has 3 fixed facets
         f = t->facets[randomIndex_f];
         std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t);
         //check if p is inside one of the neighbours
         bool isPointInNeighbour = false;
-        Tetrahedron p_tetra;
+        Tetrahedron prev_tetra;
         Tetrahedron neighbour_through_f;
         
         //for loop to check conditions in the next steps
+        bool isFacetShared = false;
         for (auto& t : t_neighbours) {
             if (isPointInsideTetrahedron(t, p)) {
                 isPointInNeighbour = true;
-                p_tetra = t;
+                prev_tetra = t;
             }
-            if (isFacetInTetrahedron(p_tetra, f))
-                neighbour_through_f = t;
+            if(isPointInNeighbour)
+                if (isFacetInTetrahedron(prev_tetra, f)) {   // we already know that f belongs to t, we need to know if the two tetras share f
+                    neighbour_through_f = t;
+                    isFacetShared = true;
+                }
         }
 
+        bool onTheSameSide = true;
+        //where is the center positioned in space respect to the facet we are considering
+        int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
+        //same thing for point
+        int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
+        //if point is not in the same side of center respect to the facet, the two orientations
+//will have different signs -> negative product
+        if (centerOrientation * pointOrientation < 0) 
+            onTheSameSide = false;
+            // TODO EDGE CASE: P LIES ON FACET??
+
         //point p is not neighbour of tetrahedron 
-        if ((!isPointInNeighbour) || (isPointInNeighbour &&
+        // // if p is neighbour of tetrahedron through f, it means that the two tetrahedra share f 
             //point p is neighbour of tetrahedron, but not through facet f -> f is not in p's tetrahedron
-            !isFacetInTetrahedron(p_tetra, f))) {
-            //where is the center positioned in space respect to the facet we are considering
-            int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
-            //same thing for point
-            int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-            //if point is not in the same side of center respect to the facet, the two orientations
-            //will have different signs -> negative product
-            // 
-            //this condition means: p 
-            if (centerOrientation * pointOrientation < 0) {
+        if ((!isPointInNeighbour ||!isFacetShared) && !onTheSameSide) {
                 previous = t;
                 *t = neighbour_through_f;
-            }
         }
         //point is neighbour of "previous" through facet f
         else {
@@ -423,40 +430,49 @@ public:
             for (auto& t : t_neighbours) {
                 if (isPointInsideTetrahedron(t, p)) {
                     isPointInNeighbour = true;
-                    p_tetra = t;
+                    prev_tetra = t;
                 }
-                if (isFacetInTetrahedron(p_tetra, f))
-                    neighbour_through_f = t;
+                if (isPointInNeighbour)
+                    if (isFacetInTetrahedron(prev_tetra, f)) {   // we already know that f belongs to t, we need to know if the two tetras share f
+                        neighbour_through_f = t;
+                        isFacetShared = true;
+                    }
             }
-            if ((!isPointInNeighbour) || (isPointInNeighbour &&
-                //point p is neighbour of tetrahedron, but not through facet f
-                !isFacetInTetrahedron(p_tetra, f))) {
-                int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
-                int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-                if (centerOrientation * pointOrientation < 0) {
-                    previous = t;
-                    *t = neighbour_through_f;
-                }
+
+            bool onTheSameSide = true;
+            int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
+            int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
+            if (centerOrientation * pointOrientation < 0)
+                onTheSameSide = false;
+
+            //point p is not neighbour OR point p is neighbour of tetrahedron, but not through facet f
+            if ((!isPointInNeighbour || !isFacetShared) && !onTheSameSide) {
+                 previous = t;
+                *t = neighbour_through_f;
             }
             else {
                 f = t->facets[(randomIndex_f + 2) % 3];
                 for (auto& t : t_neighbours) {
                     if (isPointInsideTetrahedron(t, p)) {
                         isPointInNeighbour = true;
-                        p_tetra = t;
+                        prev_tetra = t;
                     }
-                    if (isFacetInTetrahedron(p_tetra, f))
-                        neighbour_through_f = t;
+                    if (isPointInNeighbour)
+                        if (isFacetInTetrahedron(prev_tetra, f)) {   // we already know that f belongs to t, we need to know if the two tetras share f
+                            neighbour_through_f = t;
+                            isFacetShared = true;
+                        }
                 }
-                if ((!isPointInNeighbour) || (isPointInNeighbour &&
-                    //point p is neighbour of tetrahedron, but not through facet f
-                    !isFacetInTetrahedron(p_tetra, f))) {
-                    int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
-                    int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-                    if (centerOrientation * pointOrientation < 0) {
-                        previous = t;
-                        *t = neighbour_through_f;
-                    }
+                bool onTheSameSide = true;
+                int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
+                int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
+                if (centerOrientation * pointOrientation < 0)
+                    onTheSameSide = false;
+
+                //point p is not neighbour OR point p is neighbour of tetrahedron, but not through facet f
+                if ((!isPointInNeighbour || !isFacetShared) && !onTheSameSide) {
+                    previous = t;
+                    *t = neighbour_through_f;
                 }
                 else
                     end = true;
