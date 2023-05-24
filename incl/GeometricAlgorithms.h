@@ -171,32 +171,33 @@ public:
 
             newTetrahedrons.push_back(newInsertedTetrahedron);
         }
-        
+
         return newTetrahedrons;
     }
 
-    std::vector<Tetrahedron> flip23(Tetrahedron tetrahedron1, Tetrahedron tetrahedron2) {
-        //I assume the given tetrahedrons are correct and neighbours
-        //I now need to find the facet they share
-        std::map<TriangleFacet, int, TriangleFacetComparator> facets;
-        for (int i = 0; i < tetrahedron1.facets.size() && i < tetrahedron2.facets.size(); i++) {
-            facets[tetrahedron1.facets[i]] += 1;
-            facets[tetrahedron2.facets[i]] += 1;
-        }
-
+    std::vector<Tetrahedron> flip23(std::vector<Tetrahedron> tetrahedrons) {
         bool haveOneSameFacet = false;
         TriangleFacet sameFacet;
 
-        for (std::map<TriangleFacet, int, TriangleFacetComparator>::iterator it = facets.begin(); it != facets.end(); ++it) {
-            if (it->second > 1) {
-                haveOneSameFacet = true;
-                sameFacet = it->first;
+        for (auto& facet1 : tetrahedrons[0].facets) {
+            std::set<btVector3, btVector3Comparator> s1(facet1.vertices.begin(), facet1.vertices.end());
+            for (auto& facet2 : tetrahedrons[1].facets) {
+                std::set<btVector3, btVector3Comparator> s2(facet2.vertices.begin(), facet2.vertices.end());
+                s2.insert(s1.begin(), s1.end());
+                if (s2.size() == 3) {
+                    haveOneSameFacet = true;
+                    sameFacet = facet1;
+                    break;
+                }
+            }
+            if (haveOneSameFacet) {
+                break;
             }
         }
 
         if (haveOneSameFacet) {
-            btVector3 v1 = getOppositeVerticeToFacet(tetrahedron1, sameFacet);
-            btVector3 v2 = getOppositeVerticeToFacet(tetrahedron2, sameFacet);
+            btVector3 v1 = getOppositeVerticeToFacet(tetrahedrons[0], sameFacet);
+            btVector3 v2 = getOppositeVerticeToFacet(tetrahedrons[1], sameFacet);
             std::vector<Tetrahedron> flippedTetrahedrons;
             //Here I create the 3 new tetras
             for (int i = 0; i < 3; i++) {
@@ -204,13 +205,13 @@ public:
                 { v1, v2,  sameFacet.vertices[i % 3]}
                 };
                 TriangleFacet facet2 = {
-                { v1, v2,  sameFacet.vertices[i + 1 % 3]}
+                { v1, v2,  sameFacet.vertices[(i + 1) % 3]}
                 };
                 TriangleFacet facet3 = {
-                { v1, sameFacet.vertices[i % 3], sameFacet.vertices[i + 1 % 3]}
+                { v1, sameFacet.vertices[i % 3], sameFacet.vertices[(i + 1) % 3]}
                 };
                 TriangleFacet facet4 = {
-                { v2, sameFacet.vertices[i % 3], sameFacet.vertices[i + 1 % 3]}
+                { v2, sameFacet.vertices[i % 3], sameFacet.vertices[(i + 1) % 3]}
                 };
 
                 std::vector<TriangleFacet> facets = { facet1, facet2, facet3, facet4 };
@@ -244,7 +245,7 @@ public:
         int found = 0;
         std::vector<btVector3> commonToAll;
 
-        for (std::map<btVector3, int, TriangleFacetComparator>::iterator it = vertices.begin(); it != vertices.end(); ++it) {
+        for (std::map<btVector3, int, btVector3Comparator>::iterator it = vertices.begin(); it != vertices.end(); ++it) {
             if (it->second == 3) {
                 found += 1;
                 commonToAll.push_back(it->first);
@@ -254,7 +255,7 @@ public:
 
         if (haveOne2CommonVertices) {
             //I get all the singular vertices
-            std::set<btVector3> allSingularVerticesAcross3Tetras;
+            std::set<btVector3, btVector3Comparator> allSingularVerticesAcross3Tetras;
             for (auto& tetra : tetrasToFlip) {
                 allSingularVerticesAcross3Tetras.insert(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end());
             }
@@ -370,7 +371,8 @@ public:
             return findFatherWithLeastNeighbours(tetras, p);
 
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
-        Tetrahedron t = tetras.at(randomIndex_t);
+        // check indices 0(VAO=3) and 4 (VAO=9)
+        Tetrahedron t = tetras.at(0);
         Tetrahedron previous = t;
         bool end = false;
         TriangleFacet f;
@@ -386,21 +388,31 @@ public:
     std::vector<VoronoiMesh> convertToVoronoi(std::vector<Tetrahedron> tetras) {
        
         std::map<btVector3, std::vector<DelauneyEdge>, btVector3Comparator> outgoingEdgesFromVertex;
-        std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter;
+        std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToVoronoiVertex;
         //find equivalent Voronoi vertex for each Delauney tetrahedron
 
-        setupOutgoingEdgesAndCircumcenters(outgoingEdgesFromVertex, tetraToCircumcenter, tetras);
+        for (auto& t : tetras){
+            btVector3 circumcenter = getSphereCenter(t.allSingularVertices);
+            tetraToVoronoiVertex.insert({ t, circumcenter });
+        }
 
-        std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges = findUniqueVoronoiEdges(tetraToCircumcenter, tetras);
+        std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges = findUniqueVoronoiEdges(tetraToVoronoiVertex, tetras);
 
-        //PROCESS : vertex -> incident edges -> dual face
-        //first: map dual VoronoiFace to every edge in tetras
+        std::set<btVector3, btVector3Comparator> convertedVertices;
+        for (auto& tetra : tetras) {
+            for (auto& vertex : tetra.allSingularVertices) {
+                if (convertedVertices.find(vertex) == convertedVertices.end()) {
+                    convertedVertices.insert(vertex);
+                }
+            }
+       }
 
-        std::map<DelauneyEdge, VoronoiFacet, DelauneyEdgeComparator> delEdgeToVorFacet = 
-       delauneyEdgeToVoronoiFacetEquivalence(tetraToCircumcenter, uniqueVoronoiEdges, tetras);
+        std::map<DelauneyEdge, VoronoiFacet, DelauneyEdgeComparator> delEdgeToVorFacet =
+            delauneyEdgeToVoronoiFacetEquivalence(tetraToVoronoiVertex, uniqueVoronoiEdges, tetras);
 
         //build voronoi mesh
         std::vector<VoronoiMesh>voronoiMeshes = buildVoronoiMeshes(outgoingEdgesFromVertex, delEdgeToVorFacet, tetras);
+
 
         return voronoiMeshes;
     }
@@ -420,15 +432,12 @@ public:
                 }
             }
         }
-
+        
         std::vector<VoronoiEdge> facetEdgesVector;
         for (auto& edge : facetEdges)
             facetEdgesVector.push_back(edge);
 
-        std::vector<btVector3> facetVerticesVector;
-        for (btVector3 vertex : vorFacetVertices)
-            facetVerticesVector.push_back(vertex);
-        VoronoiFacet facet = { facetEdgesVector,  facetVerticesVector };
+        VoronoiFacet facet = { facetEdgesVector,  vorFacetVertices };
         return facet;
 
     }
@@ -550,25 +559,7 @@ private:
         return tetraVAO;
     }
 
-    //SUPPORTING METHODS FOR VORONOI CONVERSION
-    void setupOutgoingEdgesAndCircumcenters(std::map<btVector3, std::vector<DelauneyEdge>, btVector3Comparator>& outgoingEdgesFromVertex, std::map <Tetrahedron, btVector3, TetrahedronComparator>& tetraToCircumcenter, std::vector<Tetrahedron> tetras) {
-        for (auto& t : tetras) {
-            
-            btVector3 circumcenter = getSphereCenter(t.allSingularVertices);
-            tetraToCircumcenter.insert({ t, circumcenter });
 
-            for (auto& vertex : t.allSingularVertices) {
-                std::vector<DelauneyEdge> outgoingEdges = findOutgoingEdges(tetras, vertex);
-
-                if (outgoingEdgesFromVertex.find(vertex) != outgoingEdgesFromVertex.end())
-                    for (auto &outgoingEdge : outgoingEdges)
-                        outgoingEdgesFromVertex.at(vertex).push_back(outgoingEdge);
-                else
-                    outgoingEdgesFromVertex.insert({ vertex, outgoingEdges });
-            }
-
-        }
-    }
 
     bool isPointVertex(std::vector<Tetrahedron> tetras, btVector3 point) {
         for (auto& tetra : tetras) {
@@ -599,20 +590,38 @@ private:
 
     void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p, bool& end) {
 
+
+        if (isPointInsideTetrahedron(*t, p)) {
+            end = true;
+            return;
+        }
+
         //edge <-> facet
         // triangle <-> tetrahedron
         int randomIndex_f = std::rand() % 4; //random index from 0 to 2- every tetra has 4 fixed facets
 
         std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t);
         //check if p is inside one of the neighbours
+        if (previous->VAO == t->VAO) {
+            for (auto& neighbour : t_neighbours)
+                if (isPointInsideTetrahedron(neighbour, p)) {
+                    *t = neighbour;
+                    end = true;
+                    return;
+                }
+
+        }
 
         Tetrahedron neighbour_through_f;
         f = t->facets[randomIndex_f];
         if (verifyNeighbourConditions(f, p, *previous, tetras)) {
             previous = t;
             for (auto& neighbour : t_neighbours)
-                if (isFacetInTetrahedron(neighbour, f))
+                if (isFacetInTetrahedron(neighbour, f)) {
                     neighbour_through_f = neighbour;
+                    break;
+                }
+                    
             *t = neighbour_through_f;
         }
         //point is neighbour of "previous" through facet f
@@ -621,8 +630,10 @@ private:
             if (verifyNeighbourConditions(f, p, *previous, tetras)) {
                 previous = t;
                 for (auto& neighbour : t_neighbours)
-                    if (isFacetInTetrahedron(neighbour, f))
+                    if (isFacetInTetrahedron(neighbour, f)) {
                         neighbour_through_f = neighbour;
+                        break;
+                    }
                 *t = neighbour_through_f;
             }
             else {
@@ -630,8 +641,10 @@ private:
                 if (verifyNeighbourConditions(f, p, *previous, tetras)) {
                     previous = t;
                     for (auto& neighbour : t_neighbours)
-                        if (isFacetInTetrahedron(neighbour, f))
+                        if (isFacetInTetrahedron(neighbour, f)) {
                             neighbour_through_f = neighbour;
+                            break;
+                        }
                     *t = neighbour_through_f;
                 }
                 else
@@ -640,19 +653,14 @@ private:
                     if (verifyNeighbourConditions(f, p, *previous, tetras)) {
                         previous = t;
                         for (auto& neighbour : t_neighbours)
-                            if (isFacetInTetrahedron(neighbour, f))
+                            if (isFacetInTetrahedron(neighbour, f)) {
                                 neighbour_through_f = neighbour;
+                                break;
+                            }
                         *t = neighbour_through_f;
                     }
                     else {
-                        if (previous->VAO == t->VAO) {
-                            for (auto& neighbour : t_neighbours)
-                                if (isPointInsideTetrahedron(neighbour, p)) {
-                                    *t = neighbour;
-                                    break;
-                                }
-
-                        }
+                        
                         end = true;
                     }
 
@@ -692,33 +700,11 @@ private:
         return (isPointNotInNeighgbourThroughF && onDifferentSide);
     }
 
-    std::set<VoronoiEdge, VoronoiEdgeComparator> findUniqueVoronoiEdges(std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter, std::vector<Tetrahedron> tetras) {
-        std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges;
-        for (auto& t : tetras) {
-            std::vector<Tetrahedron> neighbours = getNeighbours(tetras, t);
-            for (auto& neighbour : neighbours) {
-                //facet shared by the adjacent tetrahedra
-                TriangleFacet sharedFacet = findSharedFacet(t, neighbour);
-                btVector3 v_t = tetraToCircumcenter.at(t);
-                btVector3 v_neighbour = tetraToCircumcenter.at(neighbour);
-                if (v_t != v_neighbour) {
-                    //each edge corresponds to a shared facet
-                    //the vertices that form the edge are the Voronoi vertices mapped to the two neighbours
-                    VoronoiEdge edge = { v_t, v_neighbour };
-                    VoronoiEdge reversedEdge = { v_neighbour, v_t };
-                    if (uniqueVoronoiEdges.find(edge) == uniqueVoronoiEdges.end() && uniqueVoronoiEdges.find(reversedEdge) == uniqueVoronoiEdges.end())
-                        uniqueVoronoiEdges.insert(edge);
-                }
-            }
-        }
-
-        return uniqueVoronoiEdges;
-    }
 
     std::map<DelauneyEdge, VoronoiFacet, DelauneyEdgeComparator> delauneyEdgeToVoronoiFacetEquivalence(
-                                                                std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter,
-                                                                std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges,
-                                                                std::vector<Tetrahedron> tetras) {
+        std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter,
+        std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges,
+        std::vector<Tetrahedron> tetras) {
         std::map<DelauneyEdge, VoronoiFacet, DelauneyEdgeComparator> delEdgeToVorFacet;
         std::set<DelauneyEdge, DelauneyEdgeComparator> visitedEdges;
         for (auto& t : tetras) {
@@ -747,6 +733,42 @@ private:
         return delEdgeToVorFacet;
     }
 
+    std::set<VoronoiEdge, VoronoiEdgeComparator> findUniqueVoronoiEdges(std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter, std::vector<Tetrahedron> tetras) {
+        std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges;
+        std::vector<TriangleFacet> visitedFacets;
+        for (auto& t : tetras) {
+            std::vector<Tetrahedron> neighbours = getNeighbours(tetras, t);
+            for (auto& neighbour : neighbours) {
+                //facet shared by the adjacent tetrahedra
+                TriangleFacet sharedFacet = findSharedFacet(t, neighbour);
+                if (!wasFacetVisited(visitedFacets, sharedFacet)) {
+                    visitedFacets.push_back(sharedFacet);
+                    btVector3 v_t = tetraToCircumcenter.at(t);
+                    btVector3 v_neighbour = tetraToCircumcenter.at(neighbour);
+                    if (v_t != v_neighbour) {
+                        //each edge corresponds to a shared facet
+                        //the vertices that form the edge are the Voronoi vertices mapped to the two neighbours
+                        VoronoiEdge edge = { v_t, v_neighbour };
+                        VoronoiEdge reversedEdge = { v_neighbour, v_t };
+                        if (uniqueVoronoiEdges.find(edge) == uniqueVoronoiEdges.end() && uniqueVoronoiEdges.find(reversedEdge) == uniqueVoronoiEdges.end())
+                            uniqueVoronoiEdges.insert(edge);
+                    }
+                }
+              
+            }
+        }
+
+        return uniqueVoronoiEdges;
+    }
+
+    bool wasFacetVisited(std::vector<TriangleFacet> visitedFacets, TriangleFacet sharedFacet) {
+        for (auto& facet : visitedFacets)
+            if (areTriangleFacetsEqual(facet, sharedFacet))
+                return true;
+
+        return false;
+    }
+
     std::vector<VoronoiMesh> buildVoronoiMeshes(
         std::map<btVector3, std::vector<DelauneyEdge>, btVector3Comparator> outgoingEdgesFromVertex,
         std::map<DelauneyEdge, VoronoiFacet, DelauneyEdgeComparator> delEdgeToVorFacet,
@@ -763,6 +785,7 @@ private:
                     alreadyConvertedVertices.insert(v);
                     std::vector<VoronoiFacet> facets;
                     std::set<btVector3, btVector3Comparator> uniqueVertices;
+                    //ERROR HERE
                     std::vector<DelauneyEdge> incidentEdges = outgoingEdgesFromVertex.at(v);
                     std::set<btVector3, btVector3Comparator> verticesAsSet;
                     for (auto&& incidentEdge : incidentEdges) {
