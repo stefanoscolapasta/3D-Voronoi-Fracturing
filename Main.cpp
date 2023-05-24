@@ -75,10 +75,21 @@ int main()
     // -----------
 
 
-    Model* tetrahedronForTest = new Model("geom/tetra2.obj");
+    Model* model = new Model("geom/bunny.obj");
 
     PhysicsEngineAbstraction pe;
-    VoronoiFracturing vorFrac(tetrahedronForTest, pe, cubePositions[0]);
+    
+    //I know that for this model there is only one mesh
+
+    std::vector<btVector3> generatedVerticesFromMesh;
+    generateVerticesFromMesh(model->meshes[0], generatedVerticesFromMesh);
+    Tetrahedron meshEncapsulatingTetrahedron = CreateTetrahedronAroundShape(generatedVerticesFromMesh, glm::vec3(1, 1, 1));
+
+    VoronoiFracturing vorFrac(meshEncapsulatingTetrahedron, pe, cubePositions[0]);
+
+    for (auto& vertex : generatedVerticesFromMesh) {
+        vorFrac.insertOnePoint(vertex, cubePositions[0]);
+    }
 
     /*/Model * tetrahedronForTest = new Model("geom/tetrahedron.obj");
     Model* cubeForTest = new Model("cube/cube.obj");
@@ -101,8 +112,11 @@ int main()
 
     bool hasCollided = false;
     //This is used to test the code ---------
-    vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, -1.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+    //vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, -1.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
     //---------------------------------------
+    
+    
+    
     while (!glfwWindowShouldClose(window))
     {
 

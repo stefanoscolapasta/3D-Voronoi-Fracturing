@@ -9,6 +9,7 @@
 #include "mesh.h"
 #include "camera.h"
 #include "tetrahedron.h"
+#include "defines.h"
 
 #define N 4
 #define SCR_WIDTH 800
@@ -53,6 +54,8 @@ bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point);
 bool SameSide(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 p);
 std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std::vector<Tetrahedron> tetrahedra);
 TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2);
+void fillVertexData(std::vector<TriangleFacet> facets, glm::vec3 color, float vertices[]);
+unsigned int createTetrahedronVAO(Tetrahedron tetra);
 
 std::vector<btVector3> convertToVector(std::set<btVector3> v);
 std::vector<float> convertVertexVectorToFlatFloatArr(std::set<Vertex> allVertices);
