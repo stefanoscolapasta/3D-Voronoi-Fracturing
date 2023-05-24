@@ -95,7 +95,7 @@ public:
         
 
         for (auto& newTetrahedron : newTetrahedrons) {
-            newTetrahedron.color = tetraFromWalk.color;;
+            newTetrahedron.color = tetraFromWalk.color;
             newTetrahedron.VAO = createTetrahedronVAO(newTetrahedron);
 
             tetrahedrons.push_back(newTetrahedron);
@@ -336,19 +336,7 @@ public:
         throw std::invalid_argument("Strange, didn't find the opposite vertice to this facet in this tetrahedron");
     }
 
-    Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
-        srand(time(NULL));
-        int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
-        Tetrahedron t = tetras.at(randomIndex_t);
-        Tetrahedron previous = t;
-        bool end = false;
-        TriangleFacet f;
-        while (!end) {
-            verifyNeighbours(tetras, f, &previous, &t, p, end);
-        }
 
-        return t;
-    }
 
     std::vector<Tetrahedron> getNeighbours(std::vector<Tetrahedron> allTetras, Tetrahedron t) {
         std::set<Tetrahedron, TetrahedronComparator> neighbours;
@@ -377,136 +365,23 @@ public:
 
     }
 
-    void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p, bool& end) {
-        srand(time(NULL));
-        //edge <-> facet
-        // triangle <-> tetrahedron
-        int randomIndex_f = std::rand() % 4; //random index from 0 to 2- every tetra has 4 fixed facets
-        f = t->facets[randomIndex_f];
-        std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t);
-        //check if p is inside one of the neighbours
-        bool isPointInNeighbour = false;
-        Tetrahedron prev_tetra;
-        Tetrahedron neighbour_through_f;
-        
-        //for loop to check conditions in the next steps
-        bool isFacetShared = false;
-        for (auto& neighbour : t_neighbours) {
-            if (isPointInsideTetrahedron(neighbour, p)) {
-                isPointInNeighbour = true;
-                prev_tetra = neighbour;
-            }
-            if(isPointInNeighbour)
-                if (isFacetInTetrahedron(prev_tetra, f)) {   // we already know that f belongs to t, we need to know if the two tetras share f
-                    neighbour_through_f = neighbour;
-                    isFacetShared = true;
-                }
+    Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
+        if (isPointVertex(tetras, p))
+            return findFatherWithLeastNeighbours(tetras, p);
+
+        int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
+        Tetrahedron t = tetras.at(randomIndex_t);
+        Tetrahedron previous = t;
+        bool end = false;
+        TriangleFacet f;
+        while (!end) {
+            verifyNeighbours(tetras, f, &previous, &t, p, end);
         }
 
-        bool onTheSameSide = true;
-        //where is the center positioned in space respect to the facet we are considering
-        int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
-        //same thing for point
-        int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-        //if point is not in the same side of center respect to the facet, the two orientations
-//will have different signs -> negative product
-        if (centerOrientation * pointOrientation < 0) 
-            onTheSameSide = false;
-            // TODO EDGE CASE: P LIES ON FACET??
-
-        //point p is not neighbour of tetrahedron 
-        // // if p is neighbour of tetrahedron through f, it means that the two tetrahedra share f 
-            //point p is neighbour of tetrahedron, but not through facet f -> f is not in p's tetrahedron
-        if ((!isPointInNeighbour ||!isFacetShared) && !onTheSameSide) {
-                previous = t;
-                *t = neighbour_through_f;
-        }
-        //point is neighbour of "previous" through facet f
-        else {
-            f = t->facets[(randomIndex_f + 1) % 4];
-            //same process as before
-            for (auto& neighbour : t_neighbours) {
-                if (isPointInsideTetrahedron(neighbour, p)) {
-                    isPointInNeighbour = true;
-                    prev_tetra = neighbour;
-                }
-                if (isPointInNeighbour)
-                    if (isFacetInTetrahedron(prev_tetra, f)) {   // we already know that f belongs to t, we need to know if the two tetras share f
-                        neighbour_through_f = neighbour;
-                        isFacetShared = true;
-                    }
-            }
-
-            bool onTheSameSide = true;
-            int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
-            int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-            if (centerOrientation * pointOrientation < 0)
-                onTheSameSide = false;
-
-            //point p is not neighbour OR point p is neighbour of tetrahedron, but not through facet f
-            if ((!isPointInNeighbour || !isFacetShared) && !onTheSameSide) {
-                 previous = t;
-                *t = neighbour_through_f;
-            }
-            else {
-
-                f = t->facets[(randomIndex_f + 2) % 4];
-                for (auto& neighbour : t_neighbours) {
-                    if (isPointInsideTetrahedron(neighbour, p)) {
-                        isPointInNeighbour = true;
-                        prev_tetra = neighbour;
-                    }
-                    if (isPointInNeighbour)
-                        if (isFacetInTetrahedron(prev_tetra, f)) {   // we already know that f belongs to t, we need to know if the two tetras share f
-                            neighbour_through_f = neighbour;
-                            isFacetShared = true;
-                        }
-                }
-                bool onTheSameSide = true;
-                int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
-                int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-                if (centerOrientation * pointOrientation < 0)
-                    onTheSameSide = false;
-
-                //point p is not neighbour OR point p is neighbour of tetrahedron, but not through facet f
-                if ((!isPointInNeighbour || !isFacetShared) && !onTheSameSide) {
-                    previous = t;
-                    *t = neighbour_through_f;
-                }
-                else
-                {
-                    f = t->facets[(randomIndex_f + 3) % 4];
-                    for (auto& neighbour : t_neighbours) {
-                        if (isPointInsideTetrahedron(neighbour, p)) {
-                            isPointInNeighbour = true;
-                            prev_tetra = neighbour;
-                        }
-                        if (isPointInNeighbour)
-                            if (isFacetInTetrahedron(prev_tetra, f)) {   // we already know that f belongs to t, we need to know if the two tetras share f
-                                neighbour_through_f = neighbour;
-                                isFacetShared = true;
-                            }
-                    }
-                    bool onTheSameSide = true;
-                    int centerOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], getTetrahedronCenter(*t));
-                    int pointOrientation = orient(f.vertices[0], f.vertices[1], f.vertices[2], p);
-                    if (centerOrientation * pointOrientation < 0)
-                        onTheSameSide = false;
-
-                    //point p is not neighbour OR point p is neighbour of tetrahedron, but not through facet f
-                    if ((!isPointInNeighbour || !isFacetShared) && !onTheSameSide) {
-                        previous = t;
-                        *t = neighbour_through_f;
-                    }
-                    else
-                        end = true;
-                }
-
-                
-            }
-        }
+        return t;
     }
 
+   
 
     std::vector<VoronoiMesh> convertToVoronoi(std::vector<Tetrahedron> tetras) {
        
@@ -693,6 +568,128 @@ private:
             }
 
         }
+    }
+
+    bool isPointVertex(std::vector<Tetrahedron> tetras, btVector3 point) {
+        for (auto& tetra : tetras) {
+            if (std::find(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end(), point) != tetra.allSingularVertices.end()) {
+                return true;
+               
+            }
+        }
+
+        return false;
+    }
+    Tetrahedron findFatherWithLeastNeighbours(std::vector<Tetrahedron> tetras, btVector3 p) {
+        Tetrahedron fatherWithLeastNeighbours;
+        int minNumNeighbours = INT_MAX;
+        for (auto& tetra : tetras) {
+            std::vector<Tetrahedron> neighbours = getNeighbours(tetras, tetra);
+            int numNeighbours = neighbours.size();
+            if ((numNeighbours < minNumNeighbours) &&
+                std::find(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end(), p) != tetra.allSingularVertices.end()) {
+                minNumNeighbours = numNeighbours;
+                fatherWithLeastNeighbours = tetra;
+            }
+               
+        }
+        return fatherWithLeastNeighbours;
+    }
+
+
+    void verifyNeighbours(std::vector<Tetrahedron> tetras, TriangleFacet f, Tetrahedron* previous, Tetrahedron* t, btVector3 p, bool& end) {
+
+        //edge <-> facet
+        // triangle <-> tetrahedron
+        int randomIndex_f = std::rand() % 4; //random index from 0 to 2- every tetra has 4 fixed facets
+
+        std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t);
+        //check if p is inside one of the neighbours
+
+        Tetrahedron neighbour_through_f;
+        f = t->facets[randomIndex_f];
+        if (verifyNeighbourConditions(f, p, *previous, tetras)) {
+            previous = t;
+            for (auto& neighbour : t_neighbours)
+                if (isFacetInTetrahedron(neighbour, f))
+                    neighbour_through_f = neighbour;
+            *t = neighbour_through_f;
+        }
+        //point is neighbour of "previous" through facet f
+        else {
+            f = t->facets[(randomIndex_f + 1) % 4];
+            if (verifyNeighbourConditions(f, p, *previous, tetras)) {
+                previous = t;
+                for (auto& neighbour : t_neighbours)
+                    if (isFacetInTetrahedron(neighbour, f))
+                        neighbour_through_f = neighbour;
+                *t = neighbour_through_f;
+            }
+            else {
+                f = t->facets[(randomIndex_f + 2) % 4];
+                if (verifyNeighbourConditions(f, p, *previous, tetras)) {
+                    previous = t;
+                    for (auto& neighbour : t_neighbours)
+                        if (isFacetInTetrahedron(neighbour, f))
+                            neighbour_through_f = neighbour;
+                    *t = neighbour_through_f;
+                }
+                else
+                {
+                    f = t->facets[(randomIndex_f + 3) % 4];
+                    if (verifyNeighbourConditions(f, p, *previous, tetras)) {
+                        previous = t;
+                        for (auto& neighbour : t_neighbours)
+                            if (isFacetInTetrahedron(neighbour, f))
+                                neighbour_through_f = neighbour;
+                        *t = neighbour_through_f;
+                    }
+                    else {
+                        if (previous->VAO == t->VAO) {
+                            for (auto& neighbour : t_neighbours)
+                                if (isPointInsideTetrahedron(neighbour, p)) {
+                                    *t = neighbour;
+                                    break;
+                                }
+
+                        }
+                        end = true;
+                    }
+
+                }
+
+
+            }
+        }
+    }
+
+    bool verifyNeighbourConditions(TriangleFacet f, btVector3 p, Tetrahedron previous, std::vector<Tetrahedron> tetras) {
+        bool isPointNotInNeighgbourThroughF = true;
+
+        //if p is not in neighbour of previous through f
+        // and p is on the other side of f respect to this previous's center
+
+        //FIRST CONDITION: is p neighbor of previous through f?
+        std::vector<Tetrahedron> previous_neighbours = getNeighbours(tetras, previous);
+        for (auto& neighbour : previous_neighbours) {
+            if (isFacetInTetrahedron(neighbour, f) && isPointInsideTetrahedron(neighbour, p))
+                isPointNotInNeighgbourThroughF = false;
+        }
+
+        //SECOND CONDITION: is p on the other side of f respect to previous's center?
+        bool onDifferentSide = false;
+
+        std::vector<btVector3> sortedVertices = sortFacetVerticesCounterClockwise(f.vertices);
+        //where is the center positioned in space respect to the facet we are considering
+        int centerOrientation = orient(sortedVertices[0], sortedVertices[1], sortedVertices[2], getTetrahedronCenter(previous));
+        //same thing for point
+        int pointOrientation = orient(sortedVertices[0], sortedVertices[1], sortedVertices[2], p);
+        //if point is not in the same side of center respect to the facet, the two orientations
+        //will have different signs -> negative product
+        if (centerOrientation * pointOrientation < 0)
+            onDifferentSide = true;
+
+        return (isPointNotInNeighgbourThroughF && onDifferentSide);
     }
 
     std::set<VoronoiEdge, VoronoiEdgeComparator> findUniqueVoronoiEdges(std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter, std::vector<Tetrahedron> tetras) {
