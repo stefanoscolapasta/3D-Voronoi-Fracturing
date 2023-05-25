@@ -54,6 +54,13 @@ std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std
 TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2);
 std::vector<btVector3>  sortFacetVerticesCounterClockwise(std::vector<btVector3> vertices);
 
+bool isPointVertex(std::vector<Tetrahedron> tetras, btVector3 point);
+bool isPointOnAnEdge(std::vector<Tetrahedron> tetras, btVector3 point);
+bool isPointOnEdgeOfTetra(Tetrahedron tetra, btVector3 point);
+bool isPointOnAFace(std::vector<Tetrahedron> tetras, btVector3 point);
+bool isPointOnFaceOfTetra(Tetrahedron tetra, btVector3 point);
+bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3);
+
 std::vector<btVector3> convertToVector(std::set<btVector3> v);
 std::vector<float> convertVertexVectorToFlatFloatArr(std::set<Vertex> allVertices);
 std::vector<float> convertVertexVectorToFlatFloatArr(std::vector<Vertex> allVertices);
@@ -70,5 +77,8 @@ bool areBtVector3Equal(btVector3 v1, btVector3 v2);
 Vertex btVectorToVertex(btVector3 v);
 std::vector<float> generateVerticesArrayFromBtVector3(btVector3 v);
 btVector3 fromVertexToBtVector3(Vertex v);
+
+
+
 
 #endif

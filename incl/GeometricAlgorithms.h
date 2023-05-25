@@ -368,8 +368,11 @@ public:
 
     Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
         if (isPointVertex(tetras, p))
-            return findFatherWithLeastNeighbours(tetras, p);
-
+            return findVertexFatherWithLeastNeighbours(tetras, p);
+        if (isPointOnAnEdge(tetras, p))
+            return findEdgeFatherWithLeastNeighbours(tetras, p);
+        if (isPointOnAFace(tetras, p))
+            return findFaceFatherWithLeastNeighbours(tetras, p);
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
         // check indices 0(VAO=3) and 4 (VAO=9)
         Tetrahedron t = tetras.at(0);
@@ -561,17 +564,8 @@ private:
 
 
 
-    bool isPointVertex(std::vector<Tetrahedron> tetras, btVector3 point) {
-        for (auto& tetra : tetras) {
-            if (std::find(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end(), point) != tetra.allSingularVertices.end()) {
-                return true;
-               
-            }
-        }
 
-        return false;
-    }
-    Tetrahedron findFatherWithLeastNeighbours(std::vector<Tetrahedron> tetras, btVector3 p) {
+    Tetrahedron findVertexFatherWithLeastNeighbours(std::vector<Tetrahedron> tetras, btVector3 p) {
         Tetrahedron fatherWithLeastNeighbours;
         int minNumNeighbours = INT_MAX;
         for (auto& tetra : tetras) {
@@ -583,6 +577,36 @@ private:
                 fatherWithLeastNeighbours = tetra;
             }
                
+        }
+        return fatherWithLeastNeighbours;
+    }
+
+    Tetrahedron findEdgeFatherWithLeastNeighbours(std::vector<Tetrahedron> tetras, btVector3 p) {
+        Tetrahedron fatherWithLeastNeighbours;
+        int minNumNeighbours = INT_MAX;
+        for (auto& tetra : tetras) {
+            std::vector<Tetrahedron> neighbours = getNeighbours(tetras, tetra);
+            int numNeighbours = neighbours.size();
+            if ((numNeighbours < minNumNeighbours) && isPointOnEdgeOfTetra(tetra, p)){
+                minNumNeighbours = numNeighbours;
+                fatherWithLeastNeighbours = tetra;
+            }
+
+        }
+        return fatherWithLeastNeighbours;
+    }
+
+    Tetrahedron findFaceFatherWithLeastNeighbours(std::vector<Tetrahedron> tetras, btVector3 p) {
+        Tetrahedron fatherWithLeastNeighbours;
+        int minNumNeighbours = INT_MAX;
+        for (auto& tetra : tetras) {
+            std::vector<Tetrahedron> neighbours = getNeighbours(tetras, tetra);
+            int numNeighbours = neighbours.size();
+            if ((numNeighbours < minNumNeighbours) && isPointOnFaceOfTetra(tetra, p)) {
+                minNumNeighbours = numNeighbours;
+                fatherWithLeastNeighbours = tetra;
+            }
+
         }
         return fatherWithLeastNeighbours;
     }
