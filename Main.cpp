@@ -75,7 +75,7 @@ int main()
     // load models
     // -----------
 
-    Model* model = new Model("geom/icosphere.obj");
+    Model* model = new Model("geom/lowPolyIco.obj");
 
     PhysicsEngineAbstraction pe;
     
@@ -86,14 +86,14 @@ int main()
     Tetrahedron meshEncapsulatingTetrahedron = CreateTetrahedronAroundShape(generatedVerticesFromMesh, glm::vec3(1, 1, 1));
 
     VoronoiFracturing vorFrac(meshEncapsulatingTetrahedron, pe, cubePositions[0]);
-
-    std::cout << generatedVerticesFromMesh.size() << "\n";
+    int totalverts = generatedVerticesFromMesh.size();
+    std::cout << totalverts << "\n";
 
     int count = 0;
     for (auto& vertex : generatedVerticesFromMesh) {
         vorFrac.insertOnePoint(vertex, cubePositions[0]);
         count += 1;
-        std::cout << count << "\n";
+        std::cout << count << "/"<< totalverts <<"\n";
     }
 
     /*/Model * tetrahedronForTest = new Model("geom/tetrahedron.obj");

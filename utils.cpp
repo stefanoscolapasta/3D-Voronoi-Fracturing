@@ -464,6 +464,89 @@ Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> meshVertices, gl
     return tetrahedron;
 }
 
+bool isPointVertex(std::vector<Tetrahedron> tetras, btVector3 point) {
+    for (auto& tetra : tetras) {
+        if (std::find(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end(), point) != tetra.allSingularVertices.end()) {
+            return true;
+
+        }
+    }
+
+    return false;
+}
+
+bool isPointOnAnEdge(std::vector<Tetrahedron> tetras, btVector3 point) {
+    for (auto tetra : tetras) {
+        if (isPointOnEdgeOfTetra(tetra, point))
+            return true;
+    }
+
+    return false;
+}
+
+bool isPointOnEdgeOfTetra(Tetrahedron tetra, btVector3 point) {
+    for (auto& facet : tetra.facets) {
+        for (size_t i = 0; i < facet.vertices.size(); i++) {
+            btVector3 v1 = facet.vertices[i];
+            btVector3 v2 = facet.vertices[(i + 1) % facet.vertices.size()];
+
+            // Check if the point is collinear with the edge (v1, v2)
+            if (isCollinear(v1, v2, point))
+                return true;
+        }
+    }
+    return false;
+}
+
+bool isPointOnAFace(std::vector<Tetrahedron> tetras, btVector3 point) {
+    for (auto tetra : tetras) {
+        if (isPointOnFaceOfTetra(tetra, point))
+            return true;
+    }
+
+    return false;
+}
+
+
+
+bool isPointOnFaceOfTetra(Tetrahedron tetra, btVector3 point) {
+    const float EPSILON = 1e-6;
+    for (auto& facet : tetra.facets) {
+        // Retrieve the vertices of the facet
+        const btVector3& v1 = facet.vertices[0];
+        const btVector3& v2 = facet.vertices[1];
+        const btVector3& v3 = facet.vertices[2];
+
+        // Compute the normal of the facet
+        btVector3 normal = (v2 - v1).cross(v3 - v1).normalize();
+
+        // Compute the vector from any point on the facet to the given point
+        btVector3 vecToPoint = point - v1;
+
+        // Compute the dot product of the normal and the vector to the point
+        float dotProduct = vecToPoint.dot(normal);
+
+        // If the dot product is close to zero, the point is on the plane of the facet
+        if (std::abs(dotProduct) < EPSILON)
+            return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3) {
+    const float EPSILON = 1e-6;
+    // Calculate the cross product of (p2 - p1) and (p3 - p1)
+    btVector3 crossProduct = (p2 - p1).cross(p3 - p1);
+
+    // If the cross product is close to zero, the points are collinear
+    return crossProduct.length2() < EPSILON;
+}
+
 void generateVerticesFromMesh(Mesh meshModel, std::vector<btVector3>& meshVertices) {
     std::vector<Vertex> vertices;
 

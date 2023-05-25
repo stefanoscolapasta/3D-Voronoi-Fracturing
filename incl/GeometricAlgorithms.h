@@ -94,56 +94,16 @@ public:
             tetras.push_back(tetraRb->first);
 
         Tetrahedron tetraFromWalk = stochasticWalk(tetras, t);
+              
+        std::vector<Tetrahedron> newTetrahedrons = flip14(getTetrahedronCenter(tetraFromWalk), tetraFromWalk, startPos);
         
-        //std::vector<Tetrahedron> newTetrahedrons = flip23(tetras);
-        
-        //flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
-        //I now remove the original container rigidbody from the structs, as I will add the tetrahedrons in which it is divided
-        //the idea is correct but popping the last element makes no sense; I should use a gerarchical data struct (nested map), so that I have 
-        //tetraRigidbodies.erase(tetraToRigidbody[tetraFromWalk]);
-        //pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[tetraFromWalk]); //And remember to remove it from the physics world
-        //rigidbodyToTetra.erase(tetraToRigidbody[tetraFromWalk]);
-        //tetraToRigidbody.erase(tetraFromWalk);
-        
-        //After a flip23 or flip32 we need to remove the tetras present before
-        
-        std::vector<Tetrahedron> newTetrahedrons = flip14(getTetrahedronCenter(tetraFromWalk), tetraFromWalk);
-        
-        //when performing the flip14 we need to remove the initial tetrahedron that was flipped
-
-        //newTetrahedrons.erase(std::remove(newTetrahedrons.begin(), newTetrahedrons.end(), tetraFromWalk), newTetrahedrons.end());
-
-        
-        tetraRigidbodies.erase(tetraToRigidbody[tetraFromWalk]);
-        pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[tetraFromWalk]); //And remember to remove it from the physics world
-        rigidbodyToTetra.erase(tetraToRigidbody[tetraFromWalk]);
-        tetraToRigidbody.erase(tetraFromWalk);
-        
-
-        //newTetrahedrons.insert(newTetrahedrons.end(), flipped14s.begin(), flipped14s.end());
-
-        for (auto& newTetrahedron : newTetrahedrons) {
-
-            newTetrahedron.color = glm::vec3(1,1,1);
-            newTetrahedron.VAO = createTetrahedronVAO(newTetrahedron);
-
-            tetrahedrons.push_back(newTetrahedron);
-
-            btRigidBody* tetraRigidbody = pe.generateMeshRigidbody(
-                startPos, // Use cube position as starting position
-                newTetrahedron.allSingularVertices,
-                btVector3(1.0f, 1.0f, 1.0f)
-            );
-
-            rigidbodyToVAO[tetraRigidbody] = newTetrahedron.VAO;
-            rigidbodyToTetra[tetraRigidbody] = newTetrahedron;
-            tetraToRigidbody[newTetrahedron] = tetraRigidbody;
-            tetraRigidbodies.insert(tetraRigidbody);
-            pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
-        }
     }
 
-    std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron) {
+
+    //-----------------------------------------FLIPS------------------------------------------------------
+    //----------------------------------------------------------------------------------------------------
+
+    std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron, btVector3 startPos) {
         std::vector<Tetrahedron> newTetrahedrons;
 
         //For some reason the third face is degenerate
@@ -197,14 +157,21 @@ public:
             for (int k = 0; k < GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA; k++) {
                 newInsertedTetrahedron.verticesAsSingleArr.push_back(flattenedValues[k]);
             }
-
+            generateAndCompleteTetrahedron(newInsertedTetrahedron, startPos);
             newTetrahedrons.push_back(newInsertedTetrahedron);
         }
+
+        tetraRigidbodies.erase(tetraToRigidbody[tetrahedron]);
+        pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[tetrahedron]); //And remember to remove it from the physics world
+        rigidbodyToTetra.erase(tetraToRigidbody[tetrahedron]);
+        tetraToRigidbody.erase(tetrahedron);
 
         return newTetrahedrons;
     }
 
-    std::vector<Tetrahedron> flip23(std::vector<Tetrahedron> tetrahedrons) {
+
+
+    std::vector<Tetrahedron> flip23(std::vector<Tetrahedron> tetrahedrons, btVector3 startPos) {
         bool haveOneSameFacet = false;
         TriangleFacet sameFacet;
 
@@ -247,7 +214,16 @@ public:
 
                 Tetrahedron newTetra;
                 generateTetrahedronFromFacets(newTetra, facets);
+                generateAndCompleteTetrahedron(newTetra, startPos);
+
                 flippedTetrahedrons.push_back(newTetra);
+            }
+
+            for (auto& t : tetrahedrons) {
+                tetraRigidbodies.erase(tetraToRigidbody[t]);
+                pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[t]); //And remember to remove it from the physics world
+                rigidbodyToTetra.erase(tetraToRigidbody[t]);
+                tetraToRigidbody.erase(t);
             }
 
             return flippedTetrahedrons;
@@ -258,7 +234,7 @@ public:
 
 
 
-    std::vector<Tetrahedron> flip32(std::vector<Tetrahedron> tetrasToFlip) {
+    std::vector<Tetrahedron> flip32(std::vector<Tetrahedron> tetrasToFlip, btVector3 startPos) {
         //I assume the given tetrahedrons are correct and neighbours
         //I now need to find the facet they share
         //I can leverage the fact that the vertices along the shared edge are the only ones shared by 3 tetrahedrons to find them
@@ -280,6 +256,7 @@ public:
                 commonToAll.push_back(it->first);
             }
         }
+
         haveOne2CommonVertices = found == 2;
 
         if (haveOne2CommonVertices) {
@@ -313,13 +290,46 @@ public:
 
                 Tetrahedron newTetra;
                 generateTetrahedronFromFacets(newTetra, facets);
+                generateAndCompleteTetrahedron(newTetra, startPos);
                 newTetras.push_back(newTetra);
+            }
+
+            for (auto& t : tetrasToFlip) {
+                tetraRigidbodies.erase(tetraToRigidbody[t]);
+                pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[t]); //And remember to remove it from the physics world
+                rigidbodyToTetra.erase(tetraToRigidbody[t]);
+                tetraToRigidbody.erase(t);
             }
 
             return newTetras;
         }
 
         throw std::invalid_argument("Something went wrong: the passed tetrahedron do not share a facet");
+    }
+
+    //-----------------------------------------END FLIPS--------------------------------------------------
+    //----------------------------------------------------------------------------------------------------
+
+
+
+
+    void generateAndCompleteTetrahedron(Tetrahedron& tetra, btVector3 startPos) {
+        tetra.color = glm::vec3(1, 1, 1);
+        tetra.VAO = createTetrahedronVAO(tetra);
+
+        tetrahedrons.push_back(tetra);
+
+        btRigidBody* tetraRigidbody = pe.generateMeshRigidbody(
+            startPos, // Use cube position as starting position
+            tetra.allSingularVertices,
+            btVector3(1.0f, 1.0f, 1.0f)
+        );
+
+        rigidbodyToVAO[tetraRigidbody] = tetra.VAO;
+        rigidbodyToTetra[tetraRigidbody] = tetra;
+        tetraToRigidbody[tetra] = tetraRigidbody;
+        tetraRigidbodies.insert(tetraRigidbody);
+        pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
     }
 
     void generateTetrahedronFromFacets(Tetrahedron& tetraToGenerate, std::vector<TriangleFacet> facets) {
@@ -396,8 +406,11 @@ public:
 
     Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
         if (isPointVertex(tetras, p))
-            return findFatherWithLeastNeighbours(tetras, p);
-
+            return findVertexFatherWithLeastNeighbours(tetras, p);
+        if (isPointOnAnEdge(tetras, p))
+            return findEdgeFatherWithLeastNeighbours(tetras, p);
+        if (isPointOnAFace(tetras, p))
+            return findFaceFatherWithLeastNeighbours(tetras, p);
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
         // check indices 0(VAO=3) and 4 (VAO=9)
         Tetrahedron t = tetras.at(0);
@@ -438,7 +451,6 @@ public:
 
         //build voronoi mesh
         std::vector<VoronoiMesh>voronoiMeshes = buildVoronoiMeshes(outgoingEdgesFromVertex, delEdgeToVorFacet, tetras);
-
 
         return voronoiMeshes;
     }
@@ -548,18 +560,8 @@ private:
 
 
 
-    bool isPointVertex(std::vector<Tetrahedron> tetras, btVector3 point) {
-        for (auto& tetra : tetras) {
-            if (std::find(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end(), point) != tetra.allSingularVertices.end()) {
-                return true;
-               
-            }
-        }
 
-        return false;
-    }
-
-    Tetrahedron findFatherWithLeastNeighbours(std::vector<Tetrahedron> tetras, btVector3 p) {
+    Tetrahedron findVertexFatherWithLeastNeighbours(std::vector<Tetrahedron> tetras, btVector3 p) {
         Tetrahedron fatherWithLeastNeighbours;
         int minNumNeighbours = INT_MAX;
         for (auto& tetra : tetras) {
@@ -571,6 +573,37 @@ private:
                 fatherWithLeastNeighbours = tetra;
             }
                
+        }
+        return fatherWithLeastNeighbours;
+    }
+
+    Tetrahedron findEdgeFatherWithLeastNeighbours(std::vector<Tetrahedron> tetras, btVector3 p) {
+        Tetrahedron fatherWithLeastNeighbours;
+        int minNumNeighbours = INT_MAX;
+        for (auto& tetra : tetras) {
+            std::vector<Tetrahedron> neighbours = getNeighbours(tetras, tetra);
+            int numNeighbours = neighbours.size();
+            if ((numNeighbours < minNumNeighbours) && isPointOnEdgeOfTetra(tetra, p)){
+                minNumNeighbours = numNeighbours;
+                fatherWithLeastNeighbours = tetra;
+            }
+
+        }
+        return fatherWithLeastNeighbours;
+    }
+
+
+    Tetrahedron findFaceFatherWithLeastNeighbours(std::vector<Tetrahedron> tetras, btVector3 p) {
+        Tetrahedron fatherWithLeastNeighbours;
+        int minNumNeighbours = INT_MAX;
+        for (auto& tetra : tetras) {
+            std::vector<Tetrahedron> neighbours = getNeighbours(tetras, tetra);
+            int numNeighbours = neighbours.size();
+            if ((numNeighbours < minNumNeighbours) && isPointOnFaceOfTetra(tetra, p)) {
+                minNumNeighbours = numNeighbours;
+                fatherWithLeastNeighbours = tetra;
+            }
+
         }
         return fatherWithLeastNeighbours;
     }
@@ -597,7 +630,6 @@ private:
                     end = true;
                     return;
                 }
-
         }
 
         Tetrahedron neighbour_through_f;
@@ -653,8 +685,6 @@ private:
                     }
 
                 }
-
-
             }
         }
     }
