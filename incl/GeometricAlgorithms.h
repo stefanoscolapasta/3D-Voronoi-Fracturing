@@ -463,7 +463,10 @@ public:
         for (auto& edge : facetEdges)
             facetEdgesVector.push_back(edge);
 
-        VoronoiFacet facet = { facetEdgesVector,  vorFacetVertices };
+        //TODO: Temporary retransform to vec, awaiting for voronoi.h fix push. Remove later.
+        std::vector<btVector3> vorFacetVerticesVec(vorFacetVertices.begin(), vorFacetVertices.end());
+        
+        VoronoiFacet facet = { facetEdgesVector,  vorFacetVerticesVec };
         return facet;
 
     }

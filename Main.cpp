@@ -75,7 +75,7 @@ int main()
     // load models
     // -----------
 
-    Model* model = new Model("geom/bunny.obj");
+    Model* model = new Model("geom/icosphere.obj");
 
     PhysicsEngineAbstraction pe;
     
@@ -87,8 +87,13 @@ int main()
 
     VoronoiFracturing vorFrac(meshEncapsulatingTetrahedron, pe, cubePositions[0]);
 
+    std::cout << generatedVerticesFromMesh.size() << "\n";
+
+    int count = 0;
     for (auto& vertex : generatedVerticesFromMesh) {
         vorFrac.insertOnePoint(vertex, cubePositions[0]);
+        count += 1;
+        std::cout << count << "\n";
     }
 
     /*/Model * tetrahedronForTest = new Model("geom/tetrahedron.obj");
@@ -120,9 +125,7 @@ int main()
         //vorFrac.insertOnePoint(btVector3(0.0f,0.0f,0.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
 
     //---------------------------------------
-    
-    
-    
+        
     while (!glfwWindowShouldClose(window))
     {
 
