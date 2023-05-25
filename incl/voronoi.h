@@ -160,7 +160,7 @@ std::vector<Tetrahedron> getTetrasIncidentToVertex(std::vector<Tetrahedron> tetr
 	}
 	
 	std::vector<Tetrahedron> incidentTetras_vector;
-	for(auto tetra: incidentTetras){
+	for(auto &tetra: incidentTetras){
 		incidentTetras_vector.push_back(tetra);
 	}
 	return incidentTetras_vector;
@@ -181,7 +181,7 @@ btRigidBody* addVoronoiRigidBody(PhysicsEngineAbstraction pe, VoronoiMesh vorono
 
 std::vector<DelauneyEdge> convertEdgeSetToVector(std::set<DelauneyEdge, DelauneyEdgeComparator> vorEdgeSet) {
 	std::vector<DelauneyEdge> vorEdgeVec;
-	for (auto edge : vorEdgeSet)
+	for (auto &edge : vorEdgeSet)
 		vorEdgeVec.push_back(edge);
 	
 	return vorEdgeVec;
@@ -210,8 +210,6 @@ std::vector<DelauneyEdge> findOutgoingEdges(std::vector<Tetrahedron> tetras, btV
 	return convertEdgeSetToVector(outgoingEdges);
 
 }
-
-
 
 unsigned int createVoronoiVAO(VoronoiMesh& voronoi) {
 	unsigned int voronoiVBO, voronoiVAO, voronoiEBO;

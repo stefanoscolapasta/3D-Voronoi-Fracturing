@@ -43,7 +43,6 @@ void subMatrix(float mat[N][N], float temp[N][N], int p, int q, int n);
 btVector3 getTetrahedronCenter(Tetrahedron tetrahedron);
 bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P);
 
-void fillVertexData(std::vector<float> verticesAsSingleArr, glm::vec3 color, float vertices[]);
 
 //TETRAS
 void generateVerticesFromMesh(Mesh meshModel, std::vector<btVector3>& meshVertices);
@@ -56,6 +55,8 @@ std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std
 TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2);
 void fillVertexData(std::vector<TriangleFacet> facets, glm::vec3 color, float vertices[]);
 unsigned int createTetrahedronVAO(Tetrahedron tetra);
+std::vector<btVector3>  sortFacetVerticesCounterClockwise(std::vector<btVector3> vertices);
+
 
 std::vector<btVector3> convertToVector(std::set<btVector3> v);
 std::vector<float> convertVertexVectorToFlatFloatArr(std::set<Vertex> allVertices);

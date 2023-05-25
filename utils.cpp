@@ -106,7 +106,28 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
     camera.ProcessMouseScroll(static_cast<float>(yoffset));
 }
 
+std::vector<btVector3>  sortFacetVerticesCounterClockwise(std::vector<btVector3> vertices) {
+    std::vector<btVector3> orderedVertices = vertices;
+    // Get the vertices
+    btVector3& a = orderedVertices[0];
+    btVector3& b = orderedVertices[1];
+    btVector3& c = orderedVertices[2];
 
+    // Calculate the vectors
+    btVector3 edge1 = b - a;
+    btVector3 edge2 = c - a;
+
+    // Calculate the cross product magnitude
+    float signedArea = edge1.cross(edge2).length();
+
+    // Check the winding order and swap vertices if necessary
+    if (signedArea < 0) {
+        // Swap b and c
+        std::swap(orderedVertices[1], orderedVertices[2]);
+    }
+    return orderedVertices;
+
+}
 
 
 //MATHS

@@ -25,6 +25,7 @@ bool checkForCollisionBetweenRbsAB(PhysicsEngineAbstraction pe, btRigidBody* rig
 
 int main()
 {
+    srand(time(NULL));
     int i, j;
     // glfw: initialize and configure
     // ------------------------------
@@ -74,7 +75,6 @@ int main()
     // load models
     // -----------
 
-
     Model* model = new Model("geom/bunny.obj");
 
     PhysicsEngineAbstraction pe;
@@ -112,7 +112,13 @@ int main()
 
     bool hasCollided = false;
     //This is used to test the code ---------
+
     //vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, -1.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+
+    //------------------------------------
+    
+        //vorFrac.insertOnePoint(btVector3(0.0f,0.0f,0.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+
     //---------------------------------------
     
     
@@ -178,7 +184,9 @@ int main()
                 glBindVertexArray(vorFrac.rigidbodyToVAO[rb]);
                 ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(rb));
                 //Here we need the VAO for each tetrahedron as their shape is not always the same
+
                 glDrawArrays(GL_LINE_STRIP, 0, FACETS_PER_TETRA * VERTICES_PER_TETRA_FACET);
+
             }
             
         }
