@@ -104,6 +104,8 @@ int main()
     bool hasCollided = false;
     //This is used to test the code ---------
     vorFrac.insertOnePoint(btVector3(0.0f,0.0f,0.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+    vorFrac.insertOnePoint(btVector3(-0.1f, -0.1f, -0.1f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+
     //---------------------------------------
     while (!glfwWindowShouldClose(window))
     {
@@ -142,20 +144,18 @@ int main()
         
         if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) {
 
-            vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+            vorFrac.insertOnePoint(btVector3(0.1f, 0.1f, 0.1f), initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
             if (!hasCollided) {
                 pe.dynamicsWorld->removeRigidBody(initialTetra); //And remember to remove it from the physics world
                 pe.dynamicsWorld->removeCollisionObject(initialTetra);
                 hasCollided = true;
             }
-            std::vector<VoronoiMesh> voronoiResult = vorFrac.convertToVoronoi(vorFrac.tetrahedrons);
-                for (auto& mesh : voronoiResult) {
-                btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, mesh, getVoronoiMeshCenter(mesh));
+            std::vector<VoronoiMesh>voronoiResult = vorFrac.convertToVoronoi(vorFrac.tetrahedrons);
+                for (auto& vorMesh : voronoiResult) {
+                btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, vorMesh, getVoronoiMeshCenter(vorMesh));
                 vorFrac.vorRigidBodies.push_back(vorRigidBody);
-                mesh.VAO = createVoronoiVAO(mesh);
-                vorFrac.vorToVAO[vorRigidBody] = mesh.VAO;
-                vorFrac.vorToNumVertices[vorRigidBody] = mesh.verticesAsSingleArr.size();
-                vorFrac.vorToIndices[vorRigidBody] = mesh.indices;
+                createVoronoiVAO(vorMesh);
+                vorFrac.vorToMesh[vorRigidBody] = vorMesh;
             }
         }
 
@@ -170,12 +170,16 @@ int main()
         }
   
         for (auto& vorRigidbody : vorFrac.vorRigidBodies) {
-            glBindVertexArray(vorFrac.vorToVAO[vorRigidbody]);
+            VoronoiMesh mesh = vorFrac.vorToMesh[vorRigidbody];
+            glBindVertexArray(mesh.VAO);
+            glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.EBO);
             ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(vorRigidbody));
-            //Here we need the VAO for each tetrahedron as their shape is not always the same
-            const int numVertices = vorFrac.vorToNumVertices[vorRigidbody];
             // Draw the mesh using indexed rendering
-            glDrawElements(GL_LINE_STRIP, vorFrac.vorToIndices[vorRigidbody].size(), GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_LINE_STRIP, mesh.nindices, GL_UNSIGNED_INT, 0);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+            glBindVertexArray(0);
         }
 
         glBindVertexArray(cubeVAO);
