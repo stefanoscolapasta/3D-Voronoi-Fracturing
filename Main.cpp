@@ -75,7 +75,7 @@ int main()
     // load models
     // -----------
 
-    Model* model = new Model("geom/lowPolyIco.obj");
+    Model* model = new Model("geom/icoSmall.obj");
 
     PhysicsEngineAbstraction pe;
     

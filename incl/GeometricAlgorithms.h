@@ -311,8 +311,7 @@ public:
     //----------------------------------------------------------------------------------------------------
 
 
-
-
+    
     void generateAndCompleteTetrahedron(Tetrahedron& tetra, btVector3 startPos) {
         tetra.color = glm::vec3(1, 1, 1);
         tetra.VAO = createTetrahedronVAO(tetra);
