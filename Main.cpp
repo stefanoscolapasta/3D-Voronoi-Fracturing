@@ -76,37 +76,43 @@ int main()
     // -----------
 
 
-    Model* tetrahedronForTest = new Model("geom/tetra2.obj");
+    Model* model = new Model("geom/icosphere.obj");
 
     PhysicsEngineAbstraction pe;
-    VoronoiFracturing vorFrac(tetrahedronForTest, pe, cubePositions[0]);
 
-    /*/Model * tetrahedronForTest = new Model("geom/tetrahedron.obj");
-    Model* cubeForTest = new Model("cube/cube.obj");
-    std::vector<btVector3> cubeModelVertices;
-    generateCubeVerticesFromMesh(cubeForTest->meshes[0], cubeModelVertices);
+    //I know that for this model there is only one mesh
 
-    PhysicsEngineAbstraction pe;
-    VoronoiFracturing vorFrac(tetrahedronForTest, pe);
-    vorFrac.createTetrahedronFromCube(cubeModelVertices);*/
+    std::vector<btVector3> generatedVerticesFromMesh;
+    generateVerticesFromMesh(model->meshes[0], generatedVerticesFromMesh);
+    Tetrahedron meshEncapsulatingTetrahedron = CreateTetrahedronAroundShape(generatedVerticesFromMesh, glm::vec3(1, 1, 1));
+
+    VoronoiFracturing vorFrac(meshEncapsulatingTetrahedron, pe, cubePositions[0]);
+    std::cout << generatedVerticesFromMesh.size() << "\n";
+
+    //NB: here we should insert a random point contained in the big tetra
+    int count = 0;
+    for (auto& vertex : generatedVerticesFromMesh) {
+        vorFrac.insertOnePoint(vertex, cubePositions[0]);
+        count += 1;
+        std::cout << count << "\n";
+    }
 
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);
     btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
     pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
 
-
     btRigidBody* initialTetra = *(vorFrac.tetraRigidbodies.begin());
     //I added the centroid (kinda)
 
     MyContactResultCallback collisionResult;
-    //Callback to use when checking collisions
 
     bool hasCollided = false;
     //This is used to test the code ---------
-    vorFrac.insertOnePoint(btVector3(0.0f,0.0f,0.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
-    vorFrac.insertOnePoint(btVector3(-0.1f, -0.1f, -0.1f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
-
+    //vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, -1.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
     //---------------------------------------
+
+
+
     while (!glfwWindowShouldClose(window))
     {
 
@@ -126,6 +132,8 @@ int main()
         // activate shader
         ourShader.use();
 
+
+
         // pass projection matrix to shader (note that in this case it could change every frame)
         glm::mat4 projection = glm::perspective(glm::radians(getCamera().Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         ourShader.setMat4("projection", projection);
@@ -141,17 +149,18 @@ int main()
             pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
         }
 
-        
+
         if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) {
 
-            vorFrac.insertOnePoint(btVector3(0.1f, 0.1f, 0.1f), initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+            vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
             if (!hasCollided) {
                 pe.dynamicsWorld->removeRigidBody(initialTetra); //And remember to remove it from the physics world
                 pe.dynamicsWorld->removeCollisionObject(initialTetra);
                 hasCollided = true;
             }
-            std::vector<VoronoiMesh>voronoiResult = vorFrac.convertToVoronoi(vorFrac.tetrahedrons);
-                for (auto& vorMesh : voronoiResult) {
+            //not rendering for now (getting wrong result from render but correct mesh)
+            std::vector<VoronoiMesh> voronoiResult = vorFrac.convertToVoronoi(vorFrac.tetrahedrons);
+            for (auto& vorMesh : voronoiResult) {
                 btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, vorMesh, getVoronoiMeshCenter(vorMesh));
                 vorFrac.vorRigidBodies.push_back(vorRigidBody);
                 createVoronoiVAO(vorMesh);
@@ -164,29 +173,16 @@ int main()
                 glBindVertexArray(vorFrac.rigidbodyToVAO[rb]);
                 ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(rb));
                 //Here we need the VAO for each tetrahedron as their shape is not always the same
-                glDrawArrays(GL_LINE_STRIP, 0, 12);
+                glDrawArrays(GL_LINE_STRIP, 0, FACETS_PER_TETRA * VERTICES_PER_TETRA_FACET);
             }
-            
-        }
-  
-        for (auto& vorRigidbody : vorFrac.vorRigidBodies) {
-            VoronoiMesh mesh = vorFrac.vorToMesh[vorRigidbody];
-            glBindVertexArray(mesh.VAO);
-            glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.EBO);
-            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(vorRigidbody));
-            // Draw the mesh using indexed rendering
-            glDrawElements(GL_LINE_STRIP, mesh.nindices, GL_UNSIGNED_INT, 0);
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
+
         }
 
         glBindVertexArray(cubeVAO);
         glm::mat4 model = pe.getUpdatedGLModelMatrix(cubeTerrainRigidbody);
         model = glm::scale(model, glm::vec3(10.0f, 1.0f, 10.0f));
         ourShader.setMat4("model", model);
-        glDrawArrays(GL_LINE_STRIP, 0, 36);
+        glDrawArrays(GL_LINE_STRIP, 0, FACETS_PER_CUBE * VERTICES_PER_CUBE_FACET);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);

@@ -7,7 +7,6 @@
 #include <vector>
 #include <algorithm>
 #include <set>
-#include <algorithm>
 #include <map>
 #include "utils.h"
 #include "tetrahedron.h"
@@ -15,12 +14,8 @@
 #include "voronoi.h"
 #include "model.h"
 #include "physicsEngine.h"
+#include "defines.h"
 
-#define GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA 36
-#define FACETS_PER_TETRA 4
-#define VERTICES_PER_TETRA_FACET 3
-#define UNIQUE_VERTICES_PER_TETRA 4
-#define MESH_FACE_VERTICES 3
 
 
 class VoronoiFracturing {
@@ -32,11 +27,12 @@ public:
     std::vector<Tetrahedron> tetrahedrons;
     std::map<btRigidBody*, unsigned int> rigidbodyToVAO;
     std::map<btRigidBody*, Tetrahedron> rigidbodyToTetra;
-    std::map<Tetrahedron, btRigidBody*,TetrahedronComparator> tetraToRigidbody;
+    std::map<Tetrahedron, btRigidBody*, TetrahedronComparator> tetraToRigidbody;
+    PhysicsEngineAbstraction pe;
 
     std::vector<btRigidBody*> vorRigidBodies;
     std::map<btRigidBody*, VoronoiMesh> vorToMesh;
-    std::map<Mesh, std::set<btVector3, btVector3Comparator>, MeshComparator> meshToVertices;
+    std::map<Mesh, std::set<btVector3, btVector3Comparator>, MeshComparator> meshToVertices; //TODO: this field is honestly useless here
 
     //The model passed has to be made up of tetrahedrons already
     VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe, btVector3 startingPosition) : pe(pe) { //Will have to generalize to other shapes
@@ -76,45 +72,38 @@ public:
 
     };
 
+    VoronoiFracturing(Tetrahedron tetrahedronModel, PhysicsEngineAbstraction& pe, btVector3 startingPosition) : pe(pe) { //Will have to generalize to other shapes
+
+        btRigidBody* meshRigidbody = pe.generateMeshRigidbody(
+            startingPosition, // Use cube position as starting position
+            tetrahedronModel.allSingularVertices,
+            btVector3(1.0f, 1.0f, 1.0f)
+        );
+
+        rigidbodyToVAO[meshRigidbody] = tetrahedronModel.VAO;
+        rigidbodyToTetra[meshRigidbody] = tetrahedronModel;
+        tetraToRigidbody[tetrahedronModel] = meshRigidbody;
+        tetraRigidbodies.insert(meshRigidbody);
+        pe.dynamicsWorld->addRigidBody(meshRigidbody, 1, 1);
+    };
+
     void insertOnePoint(btVector3 t, btVector3 startPos) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
         std::vector<Tetrahedron> tetras;
+
         for (auto tetraRb = tetraToRigidbody.begin(); tetraRb != tetraToRigidbody.end(); ++tetraRb)
             tetras.push_back(tetraRb->first);
 
         Tetrahedron tetraFromWalk = stochasticWalk(tetras, t);
 
-        std::vector<Tetrahedron> newTetrahedrons = flip14(t, tetraFromWalk);
+        std::vector<Tetrahedron> newTetrahedrons = flip14(getTetrahedronCenter(tetraFromWalk), tetraFromWalk, startPos);
 
-        //flip23(rigidbodyToTetra[toFlip], rigidbodyToTetra[toFlip]);
-        //I now remove the original container riFgidbody from the structs, as I will add the tetrahedrons in which it is divided
-        //the idea is correct but popping the last element makes no sense; I should use a gerarchical data struct (nested map), so that I have 
-        tetraRigidbodies.erase(tetraToRigidbody[tetraFromWalk]);
-        pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[tetraFromWalk]); //And remember to remove it from the physics world
-        rigidbodyToTetra.erase(tetraToRigidbody[tetraFromWalk]);
-        tetraToRigidbody.erase(tetraFromWalk);
-
-
-        for (auto& newTetrahedron : newTetrahedrons) {
-            newTetrahedron.color = tetraFromWalk.color;
-            newTetrahedron.VAO = createTetrahedronVAO(newTetrahedron);
-
-            tetrahedrons.push_back(newTetrahedron);
-
-            btRigidBody* tetraRigidbody = pe.generateMeshRigidbody(
-                startPos, // Use cube position as starting position
-                newTetrahedron.allSingularVertices,
-                btVector3(1.0f, 1.0f, 1.0f)
-            );
-
-            rigidbodyToVAO[tetraRigidbody] = newTetrahedron.VAO;
-            rigidbodyToTetra[tetraRigidbody] = newTetrahedron;
-            tetraToRigidbody[newTetrahedron] = tetraRigidbody;
-            tetraRigidbodies.insert(tetraRigidbody);
-            pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
-        }
     }
 
-    std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron) {
+
+    //-----------------------------------------FLIPS------------------------------------------------------
+    //----------------------------------------------------------------------------------------------------
+
+    std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron, btVector3 startPos) {
         std::vector<Tetrahedron> newTetrahedrons;
 
         //For some reason the third face is degenerate
@@ -168,14 +157,21 @@ public:
             for (int k = 0; k < GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA; k++) {
                 newInsertedTetrahedron.verticesAsSingleArr.push_back(flattenedValues[k]);
             }
-
+            generateAndCompleteTetrahedron(newInsertedTetrahedron, startPos);
             newTetrahedrons.push_back(newInsertedTetrahedron);
         }
+
+        tetraRigidbodies.erase(tetraToRigidbody[tetrahedron]);
+        pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[tetrahedron]); //And remember to remove it from the physics world
+        rigidbodyToTetra.erase(tetraToRigidbody[tetrahedron]);
+        tetraToRigidbody.erase(tetrahedron);
 
         return newTetrahedrons;
     }
 
-    std::vector<Tetrahedron> flip23(std::vector<Tetrahedron> tetrahedrons) {
+
+
+    std::vector<Tetrahedron> flip23(std::vector<Tetrahedron> tetrahedrons, btVector3 startPos) {
         bool haveOneSameFacet = false;
         TriangleFacet sameFacet;
 
@@ -218,7 +214,16 @@ public:
 
                 Tetrahedron newTetra;
                 generateTetrahedronFromFacets(newTetra, facets);
+                generateAndCompleteTetrahedron(newTetra, startPos);
+
                 flippedTetrahedrons.push_back(newTetra);
+            }
+
+            for (auto& t : tetrahedrons) {
+                tetraRigidbodies.erase(tetraToRigidbody[t]);
+                pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[t]); //And remember to remove it from the physics world
+                rigidbodyToTetra.erase(tetraToRigidbody[t]);
+                tetraToRigidbody.erase(t);
             }
 
             return flippedTetrahedrons;
@@ -229,7 +234,7 @@ public:
 
 
 
-    std::vector<Tetrahedron> flip32(std::vector<Tetrahedron> tetrasToFlip) {
+    std::vector<Tetrahedron> flip32(std::vector<Tetrahedron> tetrasToFlip, btVector3 startPos) {
         //I assume the given tetrahedrons are correct and neighbours
         //I now need to find the facet they share
         //I can leverage the fact that the vertices along the shared edge are the only ones shared by 3 tetrahedrons to find them
@@ -251,6 +256,7 @@ public:
                 commonToAll.push_back(it->first);
             }
         }
+
         haveOne2CommonVertices = found == 2;
 
         if (haveOne2CommonVertices) {
@@ -284,13 +290,46 @@ public:
 
                 Tetrahedron newTetra;
                 generateTetrahedronFromFacets(newTetra, facets);
+                generateAndCompleteTetrahedron(newTetra, startPos);
                 newTetras.push_back(newTetra);
+            }
+
+            for (auto& t : tetrasToFlip) {
+                tetraRigidbodies.erase(tetraToRigidbody[t]);
+                pe.dynamicsWorld->removeRigidBody(tetraToRigidbody[t]); //And remember to remove it from the physics world
+                rigidbodyToTetra.erase(tetraToRigidbody[t]);
+                tetraToRigidbody.erase(t);
             }
 
             return newTetras;
         }
 
         throw std::invalid_argument("Something went wrong: the passed tetrahedron do not share a facet");
+    }
+
+    //-----------------------------------------END FLIPS--------------------------------------------------
+    //----------------------------------------------------------------------------------------------------
+
+
+
+
+    void generateAndCompleteTetrahedron(Tetrahedron& tetra, btVector3 startPos) {
+        tetra.color = glm::vec3(1, 1, 1);
+        tetra.VAO = createTetrahedronVAO(tetra);
+
+        tetrahedrons.push_back(tetra);
+
+        btRigidBody* tetraRigidbody = pe.generateMeshRigidbody(
+            startPos, // Use cube position as starting position
+            tetra.allSingularVertices,
+            btVector3(1.0f, 1.0f, 1.0f)
+        );
+
+        rigidbodyToVAO[tetraRigidbody] = tetra.VAO;
+        rigidbodyToTetra[tetraRigidbody] = tetra;
+        tetraToRigidbody[tetra] = tetraRigidbody;
+        tetraRigidbodies.insert(tetraRigidbody);
+        pe.dynamicsWorld->addRigidBody(tetraRigidbody, 1, 1);
     }
 
     void generateTetrahedronFromFacets(Tetrahedron& tetraToGenerate, std::vector<TriangleFacet> facets) {
@@ -369,6 +408,7 @@ public:
     }
 
     Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
+
         if (isPointVertex(tetras, p))
             return findVertexFatherWithLeastNeighbours(tetras, p);
         if (isPointOnAnEdge(tetras, p))
@@ -377,14 +417,17 @@ public:
             return findFaceFatherWithLeastNeighbours(tetras, p);
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
         // check indices 0(VAO=3) and 4 (VAO=9)
-        Tetrahedron t = tetras.at(0);
+        //DEBUG
+        int visitedTetras = 0;
+        Tetrahedron t = tetras.at(randomIndex_t);
         Tetrahedron previous = t;
         bool end = false;
         TriangleFacet f;
         while (!end) {
+            visitedTetras++;
             verifyNeighbours(tetras, f, &previous, &t, p, end);
         }
-
+        std::cout << " Visited tetras : " << visitedTetras << endl;
         return t;
     }
 
@@ -476,8 +519,6 @@ public:
 
  
 private:
-
-    PhysicsEngineAbstraction pe;
 
     void uniqueVerticesFromModel(std::set<btVector3, btVector3Comparator>& uniqueVertices, Model* model) {
         
@@ -644,7 +685,7 @@ private:
         Tetrahedron neighbour_through_f;
         f = t->facets[randomIndex_f];
         if (verifyNeighbourConditions(f, p, *previous, tetras)) {
-            previous = t;
+            *previous = *t;
             for (auto& neighbour : t_neighbours)
                 if (isFacetInTetrahedron(neighbour, f)) {
                     neighbour_through_f = neighbour;
@@ -657,7 +698,7 @@ private:
         else {
             f = t->facets[(randomIndex_f + 1) % 4];
             if (verifyNeighbourConditions(f, p, *previous, tetras)) {
-                previous = t;
+                *previous = *t;
                 for (auto& neighbour : t_neighbours)
                     if (isFacetInTetrahedron(neighbour, f)) {
                         neighbour_through_f = neighbour;
@@ -668,7 +709,7 @@ private:
             else {
                 f = t->facets[(randomIndex_f + 2) % 4];
                 if (verifyNeighbourConditions(f, p, *previous, tetras)) {
-                    previous = t;
+                    *previous = *t;
                     for (auto& neighbour : t_neighbours)
                         if (isFacetInTetrahedron(neighbour, f)) {
                             neighbour_through_f = neighbour;
@@ -680,7 +721,7 @@ private:
                 {
                     f = t->facets[(randomIndex_f + 3) % 4];
                     if (verifyNeighbourConditions(f, p, *previous, tetras)) {
-                        previous = t;
+                        *previous = *t;
                         for (auto& neighbour : t_neighbours)
                             if (isFacetInTetrahedron(neighbour, f)) {
                                 neighbour_through_f = neighbour;
