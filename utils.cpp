@@ -339,10 +339,9 @@ bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2) {
     std::sort(sortedVerticesF2.begin(), sortedVerticesF2.end(), comparator);
 
     for (int i = 0; i < sortedVerticesF1.size(); i++) {
-        if (sortedVerticesF1[i] != sortedVerticesF2[i]) {
+        if(sortedVerticesF1[i]!=sortedVerticesF2[i])
             return false;
-        }
-    }
+       }
 
     // The facets are equal
     return true;
@@ -364,31 +363,9 @@ std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std
     std::vector<Tetrahedron> result;
 
     for (Tetrahedron tetrahedron : tetrahedra) {
-        bool foundv1 = false;
-        bool foundv2 = false;
-        for (TriangleFacet facet : tetrahedron.facets) {
-            for (btVector3 v : facet.vertices) {
-                if (v == v1) {
-                    foundv1 = true;
-                }
-                else if (v == v2) {
-                    foundv2 = true;
-                }
-            }
-            if (foundv1 && foundv2) {
-                for (const btVector3& v : facet.vertices) {
-                    if (v != v1 && v != v2) {
-                        result.push_back(tetrahedron);
-                        break;
-                    }
-                }
-                break;
-            }
-            else {
-                foundv1 = false;
-                foundv2 = false;
-            }
-        }
+        if (tetrahedron.allSingularVertices.find(v1) != tetrahedron.allSingularVertices.end() &&
+            tetrahedron.allSingularVertices.find(v2) != tetrahedron.allSingularVertices.end())
+            result.push_back(tetrahedron);
     }
 
     return result;
@@ -535,9 +512,6 @@ bool isPointOnFaceOfTetra(Tetrahedron tetra, btVector3 point) {
 }
 
 
-
-
-
 bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3) {
     const float EPSILON = 1e-6;
     // Calculate the cross product of (p2 - p1) and (p3 - p1)
@@ -546,6 +520,7 @@ bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3) {
     // If the cross product is close to zero, the points are collinear
     return crossProduct.length2() < EPSILON;
 }
+
 
 void generateVerticesFromMesh(Mesh meshModel, std::vector<btVector3>& meshVertices) {
     std::vector<Vertex> vertices;
@@ -621,6 +596,8 @@ std::vector<btVector3> convertToVector(std::set<btVector3> s)
     }
     return v;
 }
+
+
 
 std::vector<float> convertVertexVectorToFlatFloatArr(std::set<Vertex> allVertices) {
     std::vector<Vertex> v(allVertices.begin(), allVertices.end());

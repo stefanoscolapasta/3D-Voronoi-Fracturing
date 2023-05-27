@@ -75,6 +75,7 @@ int main()
     // load models
     // -----------
 
+
     Model* model = new Model("geom/icoSmall.obj");
 
     PhysicsEngineAbstraction pe;
@@ -96,14 +97,7 @@ int main()
         std::cout << count << "/"<< totalverts <<"\n";
     }
 
-    /*/Model * tetrahedronForTest = new Model("geom/tetrahedron.obj");
-    Model* cubeForTest = new Model("cube/cube.obj");
-    std::vector<btVector3> cubeModelVertices;
-    generateCubeVerticesFromMesh(cubeForTest->meshes[0], cubeModelVertices);
-
-    PhysicsEngineAbstraction pe;
-    VoronoiFracturing vorFrac(tetrahedronForTest, pe);
-    vorFrac.createTetrahedronFromCube(cubeModelVertices);*/
+    //I know that for this model there is only one mesh
 
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);
     btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
@@ -113,7 +107,6 @@ int main()
     //I added the centroid (kinda)
 
     MyContactResultCallback collisionResult;
-    //Callback to use when checking collisions
 
     bool hasCollided = false;
     //This is used to test the code ---------
@@ -126,6 +119,10 @@ int main()
 
     //---------------------------------------
         
+    //vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, -1.0f), cubePositions[0]); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
+    //---------------------------------------
+
+
     while (!glfwWindowShouldClose(window))
     {
 
@@ -145,7 +142,6 @@ int main()
         // activate shader
         ourShader.use();
 
-        
 
         // pass projection matrix to shader (note that in this case it could change every frame)
         glm::mat4 projection = glm::perspective(glm::radians(getCamera().Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
@@ -162,7 +158,7 @@ int main()
             pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
         }
 
-        
+
         if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) {
 
             vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
@@ -171,14 +167,13 @@ int main()
                 pe.dynamicsWorld->removeCollisionObject(initialTetra);
                 hasCollided = true;
             }
+            //not rendering for now (getting wrong result from render but correct mesh)
             std::vector<VoronoiMesh> voronoiResult = vorFrac.convertToVoronoi(vorFrac.tetrahedrons);
-                for (auto& mesh : voronoiResult) {
-                btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, mesh, getVoronoiMeshCenter(mesh));
+            for (auto& vorMesh : voronoiResult) {
+                btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, vorMesh, getVoronoiMeshCenter(vorMesh));
                 vorFrac.vorRigidBodies.push_back(vorRigidBody);
-                mesh.VAO = createVoronoiVAO(mesh);
-                vorFrac.vorToVAO[vorRigidBody] = mesh.VAO;
-                vorFrac.vorToNumVertices[vorRigidBody] = mesh.verticesAsSingleArr.size();
-                vorFrac.vorToIndices[vorRigidBody] = mesh.indices;
+                createVoronoiVAO(vorMesh);
+                vorFrac.vorToMesh[vorRigidBody] = vorMesh;
             }
         }
 
@@ -189,19 +184,10 @@ int main()
                 //Here we need the VAO for each tetrahedron as their shape is not always the same
 
                 glDrawArrays(GL_LINE_STRIP, 0, FACETS_PER_TETRA * VERTICES_PER_TETRA_FACET);
-
             }
-            
+
         }
-  
-        /*for (auto& vorRigidbody : vorFrac.vorRigidBodies) {
-            glBindVertexArray(vorFrac.vorToVAO[vorRigidbody]);
-            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(vorRigidbody));
-            //Here we need the VAO for each tetrahedron as their shape is not always the same
-            const int numVertices = vorFrac.vorToNumVertices[vorRigidbody];
-            // Draw the mesh using indexed rendering
-            glDrawElements(GL_LINE_STRIP, vorFrac.vorToIndices[vorRigidbody].size(), GL_UNSIGNED_INT, 0);
-        }*/
+
 
         glBindVertexArray(cubeVAO);
         glm::mat4 model = pe.getUpdatedGLModelMatrix(cubeTerrainRigidbody);

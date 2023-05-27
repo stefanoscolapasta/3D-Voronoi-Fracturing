@@ -16,7 +16,6 @@
 #define SCR_HEIGHT  600
 
 
-
 //OPENGL UTILS
 bool isSimulationStarted();
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -76,7 +75,6 @@ Vertex btVectorToVertex(btVector3 v);
 btVector3 fromVertexToBtVector3(Vertex v);
 std::set<Vertex> btVectorSetToVertexSet(std::set<btVector3, btVector3Comparator> allVertices);
 bool areBtVector3Equal(btVector3 v1, btVector3 v2);
-
 Vertex btVectorToVertex(btVector3 v);
 std::vector<float> generateVerticesArrayFromBtVector3(btVector3 v);
 btVector3 fromVertexToBtVector3(Vertex v);

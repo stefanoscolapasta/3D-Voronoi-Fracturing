@@ -1,4 +1,6 @@
 #pragma once
+#define QUICKHULL_IMPLEMENTATION
+#include "quickhull.h"
 #include <glm/glm.hpp>
 #include <bullet/btBulletCollisionCommon.h>
 #include <bullet/btBulletDynamicsCommon.h>
@@ -15,7 +17,6 @@
 #include "defines.h"
 
 
-
 class VoronoiFracturing {
 
 public:
@@ -25,13 +26,12 @@ public:
     std::vector<Tetrahedron> tetrahedrons;
     std::map<btRigidBody*, unsigned int> rigidbodyToVAO;
     std::map<btRigidBody*, Tetrahedron> rigidbodyToTetra;
-    std::map<Tetrahedron, btRigidBody*,TetrahedronComparator> tetraToRigidbody;
+    std::map<Tetrahedron, btRigidBody*, TetrahedronComparator> tetraToRigidbody;
     PhysicsEngineAbstraction pe;
 
     std::vector<btRigidBody*> vorRigidBodies;
-    std::map<btRigidBody*, unsigned int> vorToVAO;
-    std::map<btRigidBody*, int> vorToNumVertices;
-    std::map<btRigidBody*, std::vector<unsigned int>> vorToIndices;
+    std::map<btRigidBody*, VoronoiMesh> vorToMesh;
+
     std::map<Mesh, std::set<btVector3, btVector3Comparator>, MeshComparator> meshToVertices; //TODO: this field is honestly useless here
 
     //The model passed has to be made up of tetrahedrons already
@@ -74,17 +74,18 @@ public:
 
     VoronoiFracturing(Tetrahedron tetrahedronModel, PhysicsEngineAbstraction& pe, btVector3 startingPosition) : pe(pe) { //Will have to generalize to other shapes
 
-            btRigidBody* meshRigidbody = pe.generateMeshRigidbody(
-                startingPosition, // Use cube position as starting position
-                tetrahedronModel.allSingularVertices,
-                btVector3(1.0f, 1.0f, 1.0f)
-            );
+        btRigidBody* meshRigidbody = pe.generateMeshRigidbody(
+            startingPosition, // Use cube position as starting position
+            tetrahedronModel.allSingularVertices,
+            btVector3(1.0f, 1.0f, 1.0f)
+        );
 
-            rigidbodyToVAO[meshRigidbody] = tetrahedronModel.VAO;
-            rigidbodyToTetra[meshRigidbody] = tetrahedronModel;
-            tetraToRigidbody[tetrahedronModel] = meshRigidbody;
-            tetraRigidbodies.insert(meshRigidbody);
-            pe.dynamicsWorld->addRigidBody(meshRigidbody, 1, 1);
+        rigidbodyToVAO[meshRigidbody] = tetrahedronModel.VAO;
+        rigidbodyToTetra[meshRigidbody] = tetrahedronModel;
+        tetraToRigidbody[tetrahedronModel] = meshRigidbody;
+        tetraRigidbodies.insert(meshRigidbody);
+        pe.dynamicsWorld->addRigidBody(meshRigidbody, 1, 1);
+
     };
 
     void insertOnePoint(btVector3 t, btVector3 startPos) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
@@ -94,9 +95,9 @@ public:
             tetras.push_back(tetraRb->first);
 
         Tetrahedron tetraFromWalk = stochasticWalk(tetras, t);
-              
+
         std::vector<Tetrahedron> newTetrahedrons = flip14(getTetrahedronCenter(tetraFromWalk), tetraFromWalk, startPos);
-        
+
     }
 
 
@@ -311,7 +312,6 @@ public:
     //----------------------------------------------------------------------------------------------------
 
 
-    
     void generateAndCompleteTetrahedron(Tetrahedron& tetra, btVector3 startPos) {
         tetra.color = glm::vec3(1, 1, 1);
         tetra.VAO = createTetrahedronVAO(tetra);
@@ -380,17 +380,19 @@ public:
         std::set<Tetrahedron, TetrahedronComparator> neighbours;
 
         for (auto& tetra : allTetras) {
+            if (tetra.VAO != t.VAO) {
+                for (auto& facet : tetra.facets) {
+                    for (auto& facetToCompare : t.facets) {
+                        if (areTriangleFacetsEqual(facet, facetToCompare)) {
 
-            for (auto& facet : tetra.facets) {
-                for (auto& facetToCompare : t.facets) {
-                    if (areTriangleFacetsEqual(facet, facetToCompare)) {
-                        if (tetra.VAO != t.VAO) {
                             neighbours.insert(tetra);
                             break;  // Found a shared facet, move to the next tetrahedron
+
                         }
                     }
                 }
             }
+            
         }
 
         std::vector<Tetrahedron> neighbours_vector;
@@ -404,6 +406,7 @@ public:
     }
 
     Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
+
         if (isPointVertex(tetras, p))
             return findVertexFatherWithLeastNeighbours(tetras, p);
         if (isPointOnAnEdge(tetras, p))
@@ -412,74 +415,79 @@ public:
             return findFaceFatherWithLeastNeighbours(tetras, p);
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
         // check indices 0(VAO=3) and 4 (VAO=9)
-        Tetrahedron t = tetras.at(0);
+        //DEBUG
+        int visitedTetras = 0;
+        Tetrahedron t = tetras.at(randomIndex_t);
         Tetrahedron previous = t;
         bool end = false;
         TriangleFacet f;
         while (!end) {
+            visitedTetras++;
             verifyNeighbours(tetras, f, &previous, &t, p, end);
         }
-
+        std::cout << " Visited tetras : " << visitedTetras << endl;
         return t;
     }
 
-    std::vector<VoronoiMesh> convertToVoronoi(std::vector<Tetrahedron> tetras) {
+
+    std::vector<VoronoiMesh>  convertToVoronoi(std::vector<Tetrahedron> tetras) {
+        std::vector<VoronoiMesh> vorMeshes;
+        for (int i = 0; i < tetras.size(); i++) {
+            if (tetras[i].VAO == 6) {
+                tetras.erase(tetras.begin() + i);
+                break;
+            }
+
+        }
+        glm::vec3 color = tetras[0].color;
+        std::map <int, btVector3> tetraToVoronoiVertex;
+
+        setupOutgoingEdgesAndCircumcenters( tetraToVoronoiVertex, tetras);
+
+        std::set<btVector3, btVector3Comparator> allVertices;
+        for (auto& tetra : tetras)
+            allVertices.insert(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end());
+        
+         for (auto& vertex : allVertices) {
+                std::vector<btVector3> meshVertices;
+                std::vector<Tetrahedron> incidentTetras = getTetrasIncidentToVertex(tetras, vertex);
+                for (auto& incidentTetra : incidentTetras) {
+                        btVector3 equivalentVertex = tetraToVoronoiVertex.at(incidentTetra.VAO);
+                        meshVertices.push_back(equivalentVertex);
+
+                }
+                const int n = meshVertices.size();
+                if (n > 3) {
+                    qh_vertex_t* vertices = QH_MALLOC(qh_vertex_t, n);
+
+                    for (int i = 0; i < n; i++) {
+                        vertices[i].x = meshVertices[i].getX();
+                        vertices[i].y = meshVertices[i].getY();
+                        vertices[i].z = meshVertices[i].getZ();
+                    }
+
+                    qh_mesh_t mesh = qh_quickhull3d(&vertices[0], n);
+                    VoronoiMesh vorMesh = {
+                        0,0,0,
+                        std::set<btVector3, btVector3Comparator>(meshVertices.begin(), meshVertices.end()),
+                        mesh.vertices,
+                        mesh.normals,
+                        mesh.indices,
+                        mesh.normalindices,
+                        mesh.nindices,
+                        mesh.nvertices,
+                        mesh.nnormals,
+                        color
+                    };
+                    vorMeshes.push_back(vorMesh);
+                }
+                
+            
+         }
+
+        std::cout << "";
+        return vorMeshes;
        
-        std::map<btVector3, std::vector<DelauneyEdge>, btVector3Comparator> outgoingEdgesFromVertex;
-        std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToVoronoiVertex;
-        //find equivalent Voronoi vertex for each Delauney tetrahedron
-
-        for (auto& t : tetras){
-            btVector3 circumcenter = getSphereCenter(t.allSingularVertices);
-            tetraToVoronoiVertex.insert({ t, circumcenter });
-        }
-
-        std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges = findUniqueVoronoiEdges(tetraToVoronoiVertex, tetras);
-
-        std::set<btVector3, btVector3Comparator> convertedVertices;
-        for (auto& tetra : tetras) {
-            for (auto& vertex : tetra.allSingularVertices) {
-                if (convertedVertices.find(vertex) == convertedVertices.end()) {
-                    convertedVertices.insert(vertex);
-                }
-            }
-       }
-
-        std::map<DelauneyEdge, VoronoiFacet, DelauneyEdgeComparator> delEdgeToVorFacet =
-            delauneyEdgeToVoronoiFacetEquivalence(tetraToVoronoiVertex, uniqueVoronoiEdges, tetras);
-
-        //build voronoi mesh
-        std::vector<VoronoiMesh>voronoiMeshes = buildVoronoiMeshes(outgoingEdgesFromVertex, delEdgeToVorFacet, tetras);
-
-        return voronoiMeshes;
-    }
-
-    VoronoiFacet makeFacet(std::set<btVector3, btVector3Comparator> vorFacetVertices, std::set<VoronoiEdge, VoronoiEdgeComparator> voronoiEdges) {
-        //for every vertex that forms the facet, find the edges that belong to it
-        std::set<VoronoiEdge, VoronoiEdgeComparator> facetEdges;
-        for (auto& vertex : vorFacetVertices) {
-            for (auto& edge : voronoiEdges) {
-
-                if ((edge.v1 == vertex && vorFacetVertices.find(edge.v2) != vorFacetVertices.end())
-                    || (edge.v2 == vertex && vorFacetVertices.find(edge.v1) != vorFacetVertices.end())
-                    ) {
-                    VoronoiEdge reversedEdge = { edge.v2, edge.v1 };
-                    if(facetEdges.find(edge)== facetEdges.end() && facetEdges.find(reversedEdge)==facetEdges.end())
-                        facetEdges.insert(edge);
-                }
-            }
-        }
-        
-        std::vector<VoronoiEdge> facetEdgesVector;
-        for (auto& edge : facetEdges)
-            facetEdgesVector.push_back(edge);
-
-        //TODO: Temporary retransform to vec, awaiting for voronoi.h fix push. Remove later.
-        std::vector<btVector3> vorFacetVerticesVec(vorFacetVertices.begin(), vorFacetVertices.end());
-        
-        VoronoiFacet facet = { facetEdgesVector,  vorFacetVerticesVec };
-        return facet;
-
     }
 
     void createTetrahedronFromCube(std::vector<btVector3> cubeModelVertices) {
@@ -634,7 +642,7 @@ private:
         Tetrahedron neighbour_through_f;
         f = t->facets[randomIndex_f];
         if (verifyNeighbourConditions(f, p, *previous, tetras)) {
-            previous = t;
+            *previous = *t;
             for (auto& neighbour : t_neighbours)
                 if (isFacetInTetrahedron(neighbour, f)) {
                     neighbour_through_f = neighbour;
@@ -647,7 +655,7 @@ private:
         else {
             f = t->facets[(randomIndex_f + 1) % 4];
             if (verifyNeighbourConditions(f, p, *previous, tetras)) {
-                previous = t;
+                *previous = *t;
                 for (auto& neighbour : t_neighbours)
                     if (isFacetInTetrahedron(neighbour, f)) {
                         neighbour_through_f = neighbour;
@@ -658,7 +666,7 @@ private:
             else {
                 f = t->facets[(randomIndex_f + 2) % 4];
                 if (verifyNeighbourConditions(f, p, *previous, tetras)) {
-                    previous = t;
+                    *previous = *t;
                     for (auto& neighbour : t_neighbours)
                         if (isFacetInTetrahedron(neighbour, f)) {
                             neighbour_through_f = neighbour;
@@ -670,7 +678,7 @@ private:
                 {
                     f = t->facets[(randomIndex_f + 3) % 4];
                     if (verifyNeighbourConditions(f, p, *previous, tetras)) {
-                        previous = t;
+                        *previous = *t;
                         for (auto& neighbour : t_neighbours)
                             if (isFacetInTetrahedron(neighbour, f)) {
                                 neighbour_through_f = neighbour;
@@ -718,64 +726,12 @@ private:
     }
 
 
-    std::map<DelauneyEdge, VoronoiFacet, DelauneyEdgeComparator> delauneyEdgeToVoronoiFacetEquivalence(
-        std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter,
-        std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges,
-        std::vector<Tetrahedron> tetras) {
-        std::map<DelauneyEdge, VoronoiFacet, DelauneyEdgeComparator> delEdgeToVorFacet;
-        std::set<DelauneyEdge, DelauneyEdgeComparator> visitedEdges;
-        for (auto& t : tetras) {
-            for (auto& v1 : t.allSingularVertices) {
-                for (auto& v2 : t.allSingularVertices) {
-                    if (v1 != v2) {
-                        DelauneyEdge edge = { v1, v2 };
-                        DelauneyEdge reversedEdge = { v2,v1 };
-                        if (visitedEdges.find(edge) == visitedEdges.end() && visitedEdges.find(reversedEdge) == visitedEdges.end()) {
-                            visitedEdges.insert(edge);
-                            //find all tetrahedra that contain the edge (incident tetrahedra
-                            //EDGECASE: one edge is only shared by two tetrahedra -> how to handle this? for now just don't add the facet to the mesh in that case
-                            std::vector<Tetrahedron> incidentTetras = getTetrasIncidentToEdge(edge.v1, edge.v2, tetras);
-                            //every equivalent of a DelTetrahedron becomes a vertex of the facet
-                            std::set<btVector3, btVector3Comparator> vorFacetVertices;
-                            for (Tetrahedron incident_tetra : incidentTetras) {
-                                vorFacetVertices.insert(tetraToCircumcenter.at(incident_tetra));
-                            }
-                            VoronoiFacet facet = makeFacet(vorFacetVertices, uniqueVoronoiEdges);
-                            delEdgeToVorFacet.insert({ edge, facet });
-                        }
-                    }
-                }
-            }
-        }
-        return delEdgeToVorFacet;
-    }
 
-    std::set<VoronoiEdge, VoronoiEdgeComparator> findUniqueVoronoiEdges(std::map <Tetrahedron, btVector3, TetrahedronComparator> tetraToCircumcenter, std::vector<Tetrahedron> tetras) {
-        std::set<VoronoiEdge, VoronoiEdgeComparator> uniqueVoronoiEdges;
-        std::vector<TriangleFacet> visitedFacets;
+    void setupOutgoingEdgesAndCircumcenters(std::map <int, btVector3>& tetraToCircumcenter, std::vector<Tetrahedron> tetras) {
         for (auto& t : tetras) {
-            std::vector<Tetrahedron> neighbours = getNeighbours(tetras, t);
-            for (auto& neighbour : neighbours) {
-                //facet shared by the adjacent tetrahedra
-                TriangleFacet sharedFacet = findSharedFacet(t, neighbour);
-                if (!wasFacetVisited(visitedFacets, sharedFacet)) {
-                    visitedFacets.push_back(sharedFacet);
-                    btVector3 v_t = tetraToCircumcenter.at(t);
-                    btVector3 v_neighbour = tetraToCircumcenter.at(neighbour);
-                    if (v_t != v_neighbour) {
-                        //each edge corresponds to a shared facet
-                        //the vertices that form the edge are the Voronoi vertices mapped to the two neighbours
-                        VoronoiEdge edge = { v_t, v_neighbour };
-                        VoronoiEdge reversedEdge = { v_neighbour, v_t };
-                        if (uniqueVoronoiEdges.find(edge) == uniqueVoronoiEdges.end() && uniqueVoronoiEdges.find(reversedEdge) == uniqueVoronoiEdges.end())
-                            uniqueVoronoiEdges.insert(edge);
-                    }
-                }
-              
-            }
+            btVector3 circumcenter = getTetrahedronCenter(t);
+            tetraToCircumcenter.insert({ t.VAO, circumcenter });
         }
-
-        return uniqueVoronoiEdges;
     }
 
     bool wasFacetVisited(std::vector<TriangleFacet> visitedFacets, TriangleFacet sharedFacet) {
@@ -786,66 +742,4 @@ private:
         return false;
     }
 
-    std::vector<VoronoiMesh> buildVoronoiMeshes(
-        std::map<btVector3, std::vector<DelauneyEdge>, btVector3Comparator> outgoingEdgesFromVertex,
-        std::map<DelauneyEdge, VoronoiFacet, DelauneyEdgeComparator> delEdgeToVorFacet,
-        std::vector<Tetrahedron> tetras) {
-
-        std::vector<VoronoiMesh>voronoiMeshes;
-        /* ---> PROVVISORIO <---*/
-        glm::vec3 color = tetras[0].color;
-        /* ---------------------*/
-        std::set<btVector3, btVector3Comparator> alreadyConvertedVertices;
-        for (auto& t : tetras) {
-            for (auto& v : t.allSingularVertices) {
-                if (alreadyConvertedVertices.find(v) == alreadyConvertedVertices.end()) {
-                    alreadyConvertedVertices.insert(v);
-                    std::vector<VoronoiFacet> facets;
-                    std::set<btVector3, btVector3Comparator> uniqueVertices;
-                    //ERROR HERE
-                    std::vector<DelauneyEdge> incidentEdges = outgoingEdgesFromVertex.at(v);
-                    std::set<btVector3, btVector3Comparator> verticesAsSet;
-                    for (auto&& incidentEdge : incidentEdges) {
-                        DelauneyEdge reversedIncidentEdge = { incidentEdge.v2, incidentEdge.v1 };
-                        VoronoiFacet vorFacet;
-                        if (delEdgeToVorFacet.find(incidentEdge) != delEdgeToVorFacet.end())
-                            vorFacet = delEdgeToVorFacet.at(incidentEdge);
-                        else if (delEdgeToVorFacet.find(reversedIncidentEdge) != delEdgeToVorFacet.end())
-                            vorFacet = delEdgeToVorFacet.at(reversedIncidentEdge);
-
-                        if (vorFacet.vertices.size() > 2) {
-                            facets.push_back(vorFacet);
-                            for (auto& vertex : vorFacet.vertices)
-                                verticesAsSet.insert(vertex);
-                        }
-                    }
-                    uniqueVertices.insert(verticesAsSet.begin(), verticesAsSet.end());
-                    //edge case, mesh with 1/2 facets?
-                    if (uniqueVertices.size() > 3) {
-                        VoronoiMesh mesh = {
-                            NULL,
-                            uniqueVertices,
-                            facets,
-                            {},
-                            {},
-                            color
-                        };
-
-                        std::vector<Vertex> toFill;
-                        for (auto& vorFacet : mesh.facets) {
-                            for (auto& vorVertex : vorFacet.vertices) {
-                                toFill.push_back(btVectorToVertex(vorVertex));
-                            }
-                        }
-
-
-                        mesh.verticesAsSingleArr = convertVertexVectorToFlatFloatArr(toFill);
-                        voronoiMeshes.push_back(mesh);
-                    }
-                }
-
-            }
-        }
-        return voronoiMeshes;
-    }
 };
