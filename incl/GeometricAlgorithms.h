@@ -16,8 +16,6 @@
 #include "physicsEngine.h"
 #include "defines.h"
 
-
-
 class VoronoiFracturing {
 
 public:
@@ -95,13 +93,42 @@ public:
 
         Tetrahedron tetraFromWalk = stochasticWalk(tetras, t);
 
+        //TODO: remember to remove from the flip14 the fact that the generated tetrahedrons are added to all the data structures
+        //they first need to be tested for the delaunay conditions
         std::vector<Tetrahedron> newTetrahedrons = flip14(getTetrahedronCenter(tetraFromWalk), tetraFromWalk, startPos);
+
+        //here, every tetra will be adjacent to another tetra that is not part of the star2 of the just insterted point P
+        for (auto& tetra : newTetrahedrons) {
+
+        }
 
     }
 
 
     //-----------------------------------------FLIPS------------------------------------------------------
     //----------------------------------------------------------------------------------------------------
+
+    void flip(Tetrahedron &t1, Tetrahedron& t2, btVector3 startPos) {
+        if (caseOne()) {
+            flip23({ t1, t2 }, startPos);
+        }
+        else if (caseTwo() && ) {
+
+        }
+    }
+
+    bool caseOne() {
+        return false;
+    }
+    bool caseTwo() {
+        return false;
+    }
+    bool caseThree() {
+        return false;
+    }
+    bool caseFour() {
+        return false;
+    }
 
     std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron, btVector3 startPos) {
         std::vector<Tetrahedron> newTetrahedrons;
