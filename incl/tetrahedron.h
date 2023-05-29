@@ -23,8 +23,27 @@ struct btVector3Comparator {
     }
 };
 
+struct TriangleFacet;
+struct Tetrahedron;
+
 struct TriangleFacet {
     std::vector<btVector3> vertices;
+
+    btVector3 getCenter() const {
+        btVector3 center(0, 0, 0);
+        int numVertices = vertices.size();
+
+        // Calculate the sum of all vertex coordinates
+        for (const auto& vertex : vertices) {
+            center += vertex;
+        }
+
+        // Divide the sum by the number of vertices to get the average (center)
+        center /= numVertices;
+
+        return center;
+    }
+
 };
 
 struct Tetrahedron {
@@ -34,6 +53,7 @@ struct Tetrahedron {
     std::vector<float> verticesAsSingleArr;
     glm::vec3 color;
 };
+
 
 struct TetrahedronComparator {
     bool operator()(const Tetrahedron& t1, const Tetrahedron& t2) const {

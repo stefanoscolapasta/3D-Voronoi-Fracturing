@@ -277,6 +277,18 @@ bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 p) {
     return isInside;
 }
 
+bool arePointsCoplanar(const btVector3& p1, const btVector3& p2, const btVector3& p3, const btVector3& p4) {
+    // Calculate the normal vector of the plane formed by p1, p2, and p3
+    btVector3 normal = (p2 - p1).cross(p3 - p1).normalize();
+
+    // Check if the fourth point lies on the plane
+    float distance = (p4 - p1).dot(normal);
+
+    // Check if the distance from p4 to the plane is close to zero
+    const float epsilon = 1e-6;
+    return std::abs(distance) < epsilon;
+}
+
 bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3 point) {
 
     std::set<btVector3, btVector3Comparator> vertices = tetrahedron.allSingularVertices;
@@ -444,7 +456,6 @@ bool isPointVertex(std::vector<Tetrahedron> tetras, btVector3 point) {
     for (auto& tetra : tetras) {
         if (std::find(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end(), point) != tetra.allSingularVertices.end()) {
             return true;
-
         }
     }
 
@@ -483,33 +494,69 @@ bool isPointOnAFace(std::vector<Tetrahedron> tetras, btVector3 point) {
     return false;
 }
 
-
-
-bool isPointOnFaceOfTetra(Tetrahedron tetra, btVector3 point) {
+bool isVectorPassingThroughFacet(btVector3 origin, btVector3 end, TriangleFacet facet) {
     const float EPSILON = 1e-6;
-    for (auto& facet : tetra.facets) {
-        // Retrieve the vertices of the facet
-        const btVector3& v1 = facet.vertices[0];
-        const btVector3& v2 = facet.vertices[1];
-        const btVector3& v3 = facet.vertices[2];
+    // Calculate the normal vector of the facet
+    btVector3 v0 = facet.vertices[0];
+    btVector3 v1 = facet.vertices[1];
+    btVector3 v2 = facet.vertices[2];
+    btVector3 normal = (v1 - v0).cross(v2 - v0).normalize();
 
-        // Compute the normal of the facet
-        btVector3 normal = (v2 - v1).cross(v3 - v1).normalize();
+    // Calculate the direction of the vector passing through the facet
+    btVector3 direction = (end - origin).normalize();
 
-        // Compute the vector from any point on the facet to the given point
-        btVector3 vecToPoint = point - v1;
+    // Check if the vector is passing through the facet
+    if (std::abs(normal.dot(direction)) < EPSILON) {
+        // Vector is parallel to the facet, it does not pass through
+        return false;
+    }
 
-        // Compute the dot product of the normal and the vector to the point
-        float dotProduct = vecToPoint.dot(normal);
+    // Calculate the parameter t for the intersection point
+    float t = (v0 - origin).dot(normal) / direction.dot(normal);
 
-        // If the dot product is close to zero, the point is on the plane of the facet
-        if (std::abs(dotProduct) < EPSILON)
+    // Check if the intersection point is within the bounds of the facet
+    if (t >= 0 && t <= 1) {
+        // Calculate the intersection point
+        btVector3 intersection = origin + direction * t;
+
+        // Check if the intersection point is inside the facet
+        if (isPointOnFacet(EPSILON, facet, intersection)) {
             return true;
+        }
     }
 
     return false;
 }
 
+bool isPointOnFaceOfTetra(Tetrahedron tetra, btVector3 point) {
+    const float EPSILON = 1e-6;
+    for (auto& facet : tetra.facets) {
+        // Retrieve the vertices of the facet
+        if (isPointOnFacet(EPSILON, facet, point)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool isPointOnFacet(float EPSILON, TriangleFacet facet, btVector3 point) {
+    const btVector3& v1 = facet.vertices[0];
+    const btVector3& v2 = facet.vertices[1];
+    const btVector3& v3 = facet.vertices[2];
+
+    // Compute the normal of the facet
+    btVector3 normal = (v2 - v1).cross(v3 - v1).normalize();
+
+    // Compute the vector from any point on the facet to the given point
+    btVector3 vecToPoint = point - v1;
+
+    // Compute the dot product of the normal and the vector to the point
+    float dotProduct = vecToPoint.dot(normal);
+
+    // If the dot product is close to zero, the point is on the plane of the facet
+    return std::abs(dotProduct) < EPSILON;
+}
 
 bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3) {
     const float EPSILON = 1e-6;

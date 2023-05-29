@@ -95,10 +95,19 @@ public:
 
         //TODO: remember to remove from the flip14 the fact that the generated tetrahedrons are added to all the data structures
         //they first need to be tested for the delaunay conditions
-        std::vector<Tetrahedron> newTetrahedrons = flip14(getTetrahedronCenter(tetraFromWalk), tetraFromWalk, startPos);
+        std::vector<Tetrahedron> newTetrahedronsIncidentToP = flip14(getTetrahedronCenter(tetraFromWalk), tetraFromWalk, startPos);
 
         //here, every tetra will be adjacent to another tetra that is not part of the star2 of the just insterted point P
-        for (auto& tetra : newTetrahedrons) {
+        for (auto& tetra : newTetrahedronsIncidentToP) {
+            TriangleFacet oppositeFacet = getOppositeFacetToVertice(tetra, t);
+
+            bool foundToBeSharingFacet = false;
+            Tetrahedron neighbour;
+            getTetraSharingFacet(oppositeFacet, foundToBeSharingFacet, neighbour);
+
+            if (foundToBeSharingFacet && isPointInsideSphere(tetra, t)) {
+                flip(tetra, neighbour, oppositeFacet, startPos, t);
+            }
 
         }
 
@@ -108,26 +117,152 @@ public:
     //-----------------------------------------FLIPS------------------------------------------------------
     //----------------------------------------------------------------------------------------------------
 
-    void flip(Tetrahedron &t1, Tetrahedron& t2, btVector3 startPos) {
-        if (caseOne()) {
-            flip23({ t1, t2 }, startPos);
+
+
+    void flip(Tetrahedron &t1IncidentToP, Tetrahedron &neighbouring, TriangleFacet &oppositeFacet, btVector3 startPos, btVector3 &p) {
+        //Because verifying if from p two faces are visible or not is expensive, it makes sense to leave the caseTwo as last one
+
+        if (caseOne(neighbouring, p)) {
+            flip23({ t1IncidentToP, neighbouring }, startPos);
         }
-        else if (caseTwo() && ) {
+        else {
+            Tetrahedron thirdTetraFoundToFlip;
+            if (caseTwo(t1IncidentToP, neighbouring, oppositeFacet, p, thirdTetraFoundToFlip)) {
+                flip32({ t1IncidentToP, neighbouring, thirdTetraFoundToFlip }, startPos);
+            }
+            else {
+                bool areCoplanar;
+                std::pair<Tetrahedron, Tetrahedron> neighbourCouple = caseThree(t1IncidentToP, neighbouring, oppositeFacet, p, areCoplanar);
+                if (areCoplanar) {
+
+                    std::vector<Tetrahedron> firstTetraCoupleToFlip = { t1IncidentToP, neighbouring };
+                    std::vector<Tetrahedron> secondTetraCoupleToFlip = { neighbourCouple.first , neighbourCouple.second };
+                    flip44(firstTetraCoupleToFlip, secondTetraCoupleToFlip, startPos);
+                    
+                }
+                else if (caseFour(t1IncidentToP, neighbouring, oppositeFacet, p)) {
+                    flip23({ t1IncidentToP, neighbouring }, startPos);
+                }
+            } 
+        }
+        
+
+    }
+
+    std::pair<int, std::vector<TriangleFacet>> neighbourTetraFacetsVisibleFromP(btVector3 &p, Tetrahedron &neighbour) {
+        int numberOfVisibleFacets = 0;
+        std::vector<TriangleFacet> visibleFacets;
+        for (auto& facet : neighbour.facets) {
+            if (!isVectorPassingThroughFacet(p, facet.getCenter(), facet)) {
+                numberOfVisibleFacets += 1;
+                visibleFacets.push_back(facet);
+            }
+        }
+        return std::make_pair(numberOfVisibleFacets, visibleFacets);
+    }
+
+    void getTetraSharingFacet(TriangleFacet& f, bool &found, Tetrahedron &neighbour) {
+        for (auto& tetra : tetrahedrons) {
+            int count = 0;
+            for (auto& vertex : f.vertices) {
+                if (tetra.allSingularVertices.find(vertex) == tetra.allSingularVertices.end()) {
+                    break;
+                }
+                else {
+                    count += 1;
+                }
+            }
+            if (count == VERTICES_PER_TETRA_FACET) {
+                neighbour = tetra;
+                found = true;
+            }
+            
+        }
+        found = false;
+    }
+
+    bool caseOne(Tetrahedron& neighbour, btVector3 &p) {
+        return neighbourTetraFacetsVisibleFromP(p, neighbour).first == 1;
+    }
+
+    bool caseTwo(Tetrahedron& incidentToP, Tetrahedron& neighbour, TriangleFacet& sharedFacet, btVector3& p, Tetrahedron& thirdTetraFoundToFlip) {
+        std::pair<int, std::vector<TriangleFacet>> visibilityInformation = neighbourTetraFacetsVisibleFromP(p, neighbour);
+        if (visibilityInformation.first == 2) {
+            for (auto& facet : visibilityInformation.second) {
+                std::set<btVector3, btVector3Comparator> verticesOfPossibleTetra({ facet.vertices[0], facet.vertices[1], facet.vertices[2], p });
+                for (auto& tetra : tetrahedrons) {
+                    if (tetra.allSingularVertices == verticesOfPossibleTetra) {
+                        thirdTetraFoundToFlip = tetra;
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    //TODO: not really useful to return a pair, can simply return a vector
+    std::pair<Tetrahedron, Tetrahedron> caseThree(Tetrahedron& t1Incident, Tetrahedron& t2, TriangleFacet& sharedFacet, btVector3& p, bool& areCoplanar) {
+        btVector3 oppositeVertex = getOppositeVerticeToFacet(t2, sharedFacet);
+
+        TriangleFacet f1WithP;
+        TriangleFacet f2WithOppositeToP;
+
+        bool isFirstCoplanar = arePointsCoplanar(p, sharedFacet.vertices[0], sharedFacet.vertices[1], oppositeVertex);
+        bool isSecondCoplanar = false;
+        bool isThirdCoplanar = false;
+
+        if (isFirstCoplanar) {
+            f1WithP = { std::vector<btVector3>({p, sharedFacet.vertices[0], sharedFacet.vertices[1]}) };
+            f2WithOppositeToP = { std::vector<btVector3>({oppositeVertex, sharedFacet.vertices[0], sharedFacet.vertices[1]}) };
+        }
+        else {
+            isSecondCoplanar = arePointsCoplanar(p, sharedFacet.vertices[1], sharedFacet.vertices[2], oppositeVertex);
+            if (isSecondCoplanar) {
+                f1WithP = { std::vector<btVector3>({p, sharedFacet.vertices[1], sharedFacet.vertices[2]}) };
+                f2WithOppositeToP = { std::vector<btVector3>({oppositeVertex, sharedFacet.vertices[1], sharedFacet.vertices[2]}) };
+            }
+            else {
+                isThirdCoplanar = arePointsCoplanar(p, sharedFacet.vertices[2], sharedFacet.vertices[0], oppositeVertex);
+                if (isThirdCoplanar) {
+                    f1WithP = { std::vector<btVector3>({p, sharedFacet.vertices[2], sharedFacet.vertices[0]}) };
+                    f2WithOppositeToP = { std::vector<btVector3>({oppositeVertex, sharedFacet.vertices[2], sharedFacet.vertices[0]}) };
+                }
+            }
 
         }
+
+        bool isThereCoplanarity = isFirstCoplanar || isSecondCoplanar || isThirdCoplanar;
+        
+        if (!isThereCoplanarity) {
+            areCoplanar = false;
+            Tetrahedron empty;
+            return std::make_pair(empty, empty);
+        }
+        else {
+            Tetrahedron neighbour1WithP;
+            bool found1;
+            getTetraSharingFacet(f1WithP, found1, neighbour1WithP);
+            if (!found1) {
+                throw std::invalid_argument("Something went wrong: the passed facet has no neighbouring facets");
+            }
+
+            Tetrahedron neighbour2WithOppositeToP;
+            bool found2;
+            getTetraSharingFacet(f2WithOppositeToP, found2, neighbour2WithOppositeToP);
+            if (!found2) {
+                throw std::invalid_argument("Something went wrong: the passed facet has no neighbouring facets");
+            }
+
+            areCoplanar = true;
+            return std::make_pair(neighbour1WithP, neighbour2WithOppositeToP);
+            
+        }
+
     }
 
-    bool caseOne() {
-        return false;
-    }
-    bool caseTwo() {
-        return false;
-    }
-    bool caseThree() {
-        return false;
-    }
-    bool caseFour() {
-        return false;
+    bool caseFour(Tetrahedron& t1Incident, Tetrahedron& t2, TriangleFacet& sharedFacet, btVector3& p) {
+        return arePointsCoplanar(sharedFacet.vertices[0], sharedFacet.vertices[1], sharedFacet.vertices[2], p);
     }
 
     std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron, btVector3 startPos) {
@@ -332,6 +467,17 @@ public:
         }
 
         throw std::invalid_argument("Something went wrong: the passed tetrahedron do not share a facet");
+    }
+
+    std::pair<std::vector<Tetrahedron>, std::vector<Tetrahedron>> flip44(std::vector<Tetrahedron> firstCoupleToFlip, std::vector<Tetrahedron> secondCoupleToFlip, btVector3 startPos) {
+        //flip44 is a combination of a flip23 followed by a flip32
+        std::vector<Tetrahedron> flippedWithDegenerateTetraFirstCouple = flip23(firstCoupleToFlip, startPos);
+        std::vector<Tetrahedron> flippedFirstCouple = flip32(flippedWithDegenerateTetraFirstCouple, startPos);
+
+        std::vector<Tetrahedron> flippedWithDegenerateTetraSecondCouple = flip23(secondCoupleToFlip, startPos);
+        std::vector<Tetrahedron> flippedSecondCouple = flip32(flippedWithDegenerateTetraSecondCouple, startPos);
+
+        return std::make_pair(flippedFirstCouple, flippedSecondCouple);
     }
 
     //-----------------------------------------END FLIPS--------------------------------------------------
