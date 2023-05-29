@@ -6,6 +6,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 #include<glm/gtx/norm.hpp>
+#include <algorithm>
+#include<math.h> 
+#include <random>
 #include "mesh.h"
 #include "camera.h"
 #include "tetrahedron.h"
@@ -34,18 +37,16 @@ float getLastFrame();
 //<0 -> p is under the plane defined by a, b,c
 // = 0-> p is on the plane defined by a, b,c
 btVector3 getSphereCenter(std::set<btVector3, btVector3Comparator> points);
-glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, glm::vec3 point2);
 int orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p);
-float determinantOfMatrix(float matrix[N][N], int n);
-void subMatrix(float mat[N][N], float temp[N][N], int p, int q, int n);
 btVector3 getTetrahedronCenter(Tetrahedron tetrahedron);
 bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P);
 
 
 //TETRAS
 void generateVerticesFromMesh(Mesh meshModel, std::vector<btVector3>& meshVertices);
+btVector3 extractRandomPointInsideTetrahedron(Tetrahedron tetrahedron);
 Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> shapeVertices, glm::vec3 meshColor);
-bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f);
+bool isFacetInTetrahedron(Tetrahedron t, TriangleFacet f);
 bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2);
 bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3  point);
 bool SameSide(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 p);
@@ -53,10 +54,10 @@ std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std
 TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2);
 std::vector<btVector3>  sortFacetVerticesCounterClockwise(std::vector<btVector3> vertices);
 
-bool isPointVertex(std::vector<Tetrahedron> tetras, btVector3 point);
-bool isPointOnAnEdge(std::vector<Tetrahedron> tetras, btVector3 point);
+Tetrahedron getVertexFather(std::vector<Tetrahedron> tetras, btVector3 point);
+Tetrahedron getPointOnEdgeFather(std::vector<Tetrahedron> tetras, btVector3 point);
 bool isPointOnEdgeOfTetra(Tetrahedron tetra, btVector3 point);
-bool isPointOnAFace(std::vector<Tetrahedron> tetras, btVector3 point);
+Tetrahedron getPointOnFaceFather(std::vector<Tetrahedron> tetras, btVector3 point);
 bool isPointOnFaceOfTetra(Tetrahedron tetra, btVector3 point);
 bool isPointOnFacet(float EPSILON, TriangleFacet facet, btVector3 point);
 bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3);
