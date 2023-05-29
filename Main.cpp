@@ -91,8 +91,9 @@ int main()
 
     //NB: here we should insert a random point contained in the big tetra
     int count = 0;
-    for (auto& vertex : generatedVerticesFromMesh) {
-        vorFrac.insertOnePoint(vertex, cubePositions[0]);
+    for (int i = 0; i < 100;i++) {
+        btVector3 randomPoint = extractRandomPointInsideTetrahedron(meshEncapsulatingTetrahedron);
+        vorFrac.insertOnePoint(randomPoint, cubePositions[0]);
         count += 1;
         std::cout << count << "\n";
     }

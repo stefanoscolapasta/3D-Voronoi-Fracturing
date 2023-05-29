@@ -1,6 +1,5 @@
 #include "incl/utils.h"
-#include <algorithm>
-#include<math.h> 
+
 //OPENGL UTILS
 bool startSimulation = false;
 
@@ -109,9 +108,9 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 std::vector<btVector3>  sortFacetVerticesCounterClockwise(std::vector<btVector3> vertices) {
     std::vector<btVector3> orderedVertices = vertices;
     // Get the vertices
-    btVector3& a = orderedVertices[0];
-    btVector3& b = orderedVertices[1];
-    btVector3& c = orderedVertices[2];
+    btVector3 a = orderedVertices[0];
+    btVector3 b = orderedVertices[1];
+    btVector3 c = orderedVertices[2];
 
     // Calculate the vectors
     btVector3 edge1 = b - a;
@@ -136,68 +135,19 @@ std::vector<btVector3>  sortFacetVerticesCounterClockwise(std::vector<btVector3>
 //<0 -> p is under the plane defined by a, b,c
 // = 0-> p is on the plane defined by a, b,c
 int orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p) {
-    btVector3 facetCenter = (a + b + c) / 3;
-    btVector3 v = p - facetCenter;
-
     btVector3 edge1 = b - a;
     btVector3 edge2 = c - a;
 
     btVector3 normal = edge1.cross(edge2);
-    normal.normalize();
+    float dotProduct = normal.dot(p - a);
 
-    float vDotPlaneNormal = v.dot(normal);
-    if (vDotPlaneNormal < 0)
-        return -1;
-    else if (vDotPlaneNormal > 0)
-        return 1;
-    return 0;
+    if (dotProduct > 0)
+        return 1;   // Point is above the plane
+    else if (dotProduct < 0)
+        return -1;  // Point is below the plane
+
+    return 0;       // Point lies on the plane
 }
-
-
-float determinantOfMatrix(float matrix[N][N], int n) {
-    float determinant = 0.0;
-    if (n == 1) {
-        return matrix[0][0];
-    }
-    if (n == 2) {
-        return (matrix[0][0] * matrix[1][1]) - (matrix[0][1] * matrix[1][0]);
-    }
-    float temp[N][N], sign = 1;
-    for (int i = 0; i < n; i++) {
-        subMatrix(matrix, temp, 0, i, n);
-        determinant += sign * matrix[0][i] * determinantOfMatrix(temp, n - 1);
-        sign = -sign;
-    }
-    return determinant;
-}
-
-void subMatrix(float mat[N][N], float temp[N][N], int p, int q, int n) {
-    int i = 0, j = 0;
-    // filling the sub matrix
-    for (int row = 0; row < n; row++) {
-        for (int col = 0; col < n; col++) {
-            // skipping if the current row or column is not equal to the current
-            // element row and column
-            if (row != p && col != q) {
-                temp[i][j++] = mat[row][col];
-                if (j == n - 1) {
-                    j = 0;
-                    i++;
-                }
-            }
-        }
-    }
-}
-
-glm::vec3 intersection(glm::vec3 normal1, glm::vec3 point1, glm::vec3 normal2, glm::vec3 point2) {
-    glm::vec3 dir = glm::normalize(glm::cross(normal1, normal2));
-    float d1 = glm::dot(normal1, point1);
-    float d2 = glm::dot(normal2, point2);
-    float d3 = glm::dot(dir, point1 - point2);
-    float t = (d1 - d2) / d3;
-    return point1 + t * dir;
-}
-
 
 //CONVERSIONS
 
@@ -299,13 +249,21 @@ bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3 point) {
 
 bool SameSide(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 p)
 {
+    const float EPSILON = 1e-5;
     glm::vec3 normal = glm::cross(v1 - v0, v2 - v0);
+
+    // Check if the normal vector is close to zero (i.e., the triangle is very flat)
+    if (glm::length(normal) < EPSILON) {
+        // Handle the special case when the triangle is very flat
+        return true;
+    }
+
     float dotV3 = glm::dot(normal, v3 - v0);
     float dotP = glm::dot(normal, p - v0);
     return signbit(dotV3) == signbit(dotP);
 }
 
-bool isFacetInTetrahedron(const Tetrahedron& t, const TriangleFacet& f) {
+bool isFacetInTetrahedron(Tetrahedron t,TriangleFacet f) {
     for (const auto& tf : t.facets) {
         if (areTriangleFacetsEqual(tf, f)) {
             return true;
@@ -440,24 +398,33 @@ Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> meshVertices, gl
     return tetrahedron;
 }
 
-bool isPointVertex(std::vector<Tetrahedron> tetras, btVector3 point) {
+Tetrahedron getVertexFather(std::vector<Tetrahedron> tetras, btVector3 point) {
     for (auto& tetra : tetras) {
         if (std::find(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end(), point) != tetra.allSingularVertices.end()) {
-            return true;
+            return tetra;
 
         }
     }
 
-    return false;
+    return Tetrahedron{ 0,{} ,{} ,{} ,{} };
 }
 
-bool isPointOnAnEdge(std::vector<Tetrahedron> tetras, btVector3 point) {
+Tetrahedron getPointOnEdgeFather(std::vector<Tetrahedron> tetras, btVector3 point) {
     for (auto tetra : tetras) {
         if (isPointOnEdgeOfTetra(tetra, point))
-            return true;
+            return tetra;
     }
 
-    return false;
+    return Tetrahedron{ 0,{} ,{} ,{} ,{} };
+}
+
+Tetrahedron getPointOnFaceFather(std::vector<Tetrahedron> tetras, btVector3 point) {
+    for (auto tetra : tetras) {
+        if (isPointOnFaceOfTetra(tetra, point))
+            return tetra;
+    }
+
+    return Tetrahedron{ 0,{} ,{} ,{} ,{} };
 }
 
 bool isPointOnEdgeOfTetra(Tetrahedron tetra, btVector3 point) {
@@ -471,15 +438,6 @@ bool isPointOnEdgeOfTetra(Tetrahedron tetra, btVector3 point) {
                 return true;
         }
     }
-    return false;
-}
-
-bool isPointOnAFace(std::vector<Tetrahedron> tetras, btVector3 point) {
-    for (auto tetra : tetras) {
-        if (isPointOnFaceOfTetra(tetra, point))
-            return true;
-    }
-
     return false;
 }
 
@@ -544,8 +502,37 @@ void generateVerticesFromMesh(Mesh meshModel, std::vector<btVector3>& meshVertic
 
 }
 
+btVector3 extractRandomPointInsideTetrahedron(Tetrahedron tetrahedron) {
+    // Generate random barycentric coordinates
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(0.0f, 1.0f);
 
+    float u, v, w;
+    do {
+        u = dis(gen);
+        v = dis(gen);
+        w = dis(gen);
+    } while (u + v + w > 1.0f);
 
+    std::vector<btVector3> tetraVerticesAsVector;
+    for (auto& vertex : tetrahedron.allSingularVertices) {
+        tetraVerticesAsVector.push_back(vertex);
+    }
+
+    // Interpolate to calculate the random point
+    btVector3 v0 = tetraVerticesAsVector[0];
+    btVector3 v1 = tetraVerticesAsVector[1];
+    btVector3 v2 = tetraVerticesAsVector[2];
+    btVector3 v3 = tetraVerticesAsVector[3];
+
+    btVector3 point = u * v0 + v * v1 + w * v2 + (1.0f - u - v - w) * v3;
+
+    if (!isPointInsideTetrahedron(tetrahedron, point))
+        std::cout << "Point not inside tetra!";
+    return point;
+
+}
 std::vector<btVector3> convertToVector(std::set<btVector3> s)
 {
     std::vector<btVector3> v;
