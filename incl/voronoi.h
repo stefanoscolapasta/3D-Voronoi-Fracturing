@@ -26,16 +26,13 @@ struct VoronoiMesh {
 
 btVector3 getVoronoiMeshCenter(VoronoiMesh mesh) {
 	btVector3 center(0.0f, 0.0f, 0.0f);
-	float vertexCount = 0.0;
+	float numVertices = (float)mesh.allUniqueVertices.size(); 
 
 	for (auto vertex : mesh.allUniqueVertices) {
 		center += vertex;
-		vertexCount++;
 	}
 
-	if (vertexCount > 0) {
-		center = center/vertexCount;
-	}
+	center = center/ numVertices;
 
 	return center;
 }
@@ -44,12 +41,9 @@ std::vector<Tetrahedron> getTetrasIncidentToVertex(std::vector<Tetrahedron> tetr
 	std::set<Tetrahedron, TetrahedronComparator> incidentTetras;
 
 	for (Tetrahedron tetra : tetras) {
-		for (TriangleFacet facet : tetra.facets) {
-			std::vector<btVector3>::iterator vertexIterator = std::find(facet.vertices.begin(), facet.vertices.end(), vertex);
-			if (vertexIterator != facet.vertices.end()) {
+			if (tetra.allSingularVertices.find(vertex) != tetra.allSingularVertices.end()
+				 && incidentTetras.find(tetra)==incidentTetras.end()) 
 				incidentTetras.insert(tetra);
-			}
-		}
 	}
 	
 	std::vector<Tetrahedron> incidentTetras_vector;
@@ -62,7 +56,7 @@ std::vector<Tetrahedron> getTetrasIncidentToVertex(std::vector<Tetrahedron> tetr
 
 btRigidBody* addVoronoiRigidBody(PhysicsEngineAbstraction pe, VoronoiMesh voronoi, btVector3 startingPosition) {
 		btRigidBody* voronoiRigidBody = pe.generateMeshRigidbody(
-		startingPosition, // Use cube position as starting position
+		startingPosition, 
 		std::set<btVector3, btVector3Comparator> (voronoi.allUniqueVertices.begin(), voronoi.allUniqueVertices.end()),
 		btVector3(1.0f, 1.0f, 1.0f)
 	);
@@ -83,12 +77,12 @@ void createVoronoiVAO(VoronoiMesh& voronoi) {
 	// Create vertex buffer object (VBO)
 	glGenBuffers(1, &voronoiVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, voronoiVBO);
-	glBufferData(GL_ARRAY_BUFFER, voronoi.nvertices * sizeof(float), voronoi.vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, voronoi.nvertices * sizeof(qh_vertex_t), voronoi.vertices, GL_STATIC_DRAW);
 
 	// Create element buffer object (EBO)
 	glGenBuffers(1, &voronoiEBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, voronoiEBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, voronoi.nindices * sizeof(unsigned int), voronoi.indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, voronoi.nindices * sizeof(unsigned int*), voronoi.indices, GL_STATIC_DRAW);
 
 	// Create vertex array object (VAO)
 	glGenVertexArrays(1, &voronoiVAO);

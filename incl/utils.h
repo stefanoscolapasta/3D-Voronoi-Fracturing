@@ -9,10 +9,10 @@
 #include <algorithm>
 #include<math.h> 
 #include <random>
-#include "defines.h"
 #include "mesh.h"
 #include "camera.h"
 #include "tetrahedron.h"
+#include "defines.h"
 
 #define N 4
 #define SCR_WIDTH 800
@@ -58,6 +58,7 @@ bool SameSide(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 
 std::vector<Tetrahedron> getTetrasIncidentToEdge(btVector3 v1, btVector3 v2, std::vector<Tetrahedron> tetrahedra);
 TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2);
 std::vector<btVector3>  sortFacetVerticesCounterClockwise(std::vector<btVector3> vertices);
+btVector3 getMeshCenter(std::set<btVector3, btVector3Comparator> vertices);
 
 Tetrahedron getVertexFather(std::vector<Tetrahedron> tetras, btVector3 point);
 Tetrahedron getPointOnEdgeFather(std::vector<Tetrahedron> tetras, btVector3 point);
@@ -68,7 +69,6 @@ bool isPointOnFacet(float EPSILON, TriangleFacet facet, btVector3 point);
 bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3);
 bool isVectorPassingThroughFacet(btVector3 start, btVector3 end, TriangleFacet facet);
 bool arePointsCoplanar(const btVector3& p1, const btVector3& p2, const btVector3& p3, const btVector3& p4);
-
 
 std::vector<btVector3> convertToVector(std::set<btVector3> v);
 std::vector<float> convertVertexVectorToFlatFloatArr(std::set<Vertex> allVertices);

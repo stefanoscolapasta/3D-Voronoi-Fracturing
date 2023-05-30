@@ -25,7 +25,6 @@ bool wasNewPointInserted() {
 void resetPointInsertionTrigger() {
     insertNewPointTrigger = false;
 }
-
 Camera getCamera() {
     return camera;
 }
@@ -60,10 +59,8 @@ void processInput(GLFWwindow* window)
         camera.ProcessKeyboard(LEFT, deltaTime, accelerationMultiplier);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime, accelerationMultiplier);
-
     if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS)
         insertNewPointTrigger = true;
-
     if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
         startSimulation = true;
     if (glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE)
@@ -138,6 +135,21 @@ std::vector<btVector3>  sortFacetVerticesCounterClockwise(std::vector<btVector3>
 
 }
 
+btVector3 getMeshCenter(std::set<btVector3, btVector3Comparator> vertices)
+{
+
+    btVector3 center(0.0f, 0.0f, 0.0f);
+    float numVertices = vertices.size();
+
+    for (auto vertex : vertices) {
+        center += vertex;
+    }
+
+    center = center / numVertices;
+
+    return center;
+}
+
 
 //MATHS
 //determines if a point p is over, under or lies on a plane defined by three points a, b and c
@@ -159,14 +171,55 @@ int orient(btVector3 a, btVector3 b, btVector3 c, btVector3 p) {
     return 0;       // Point lies on the plane
 }
 
-//CONVERSIONS
-
 
 glm::vec3 convertToVec3(btVector3 vec) {
     glm::vec3 vector = glm::vec3(vec.getX(), vec.getY(), vec.getZ());
     return vector;
 }
 
+
+unsigned int createTetrahedronVAO(Tetrahedron tetra) {
+    unsigned int tetraVBO, tetraVAO;
+    glGenVertexArrays(1, &tetraVAO);
+    glGenBuffers(1, &tetraVBO);
+
+    glBindVertexArray(tetraVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, tetraVBO);
+    //need to pass this to OpenGL as its simpler to handle strides and stuff
+    float vertices[GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA * 2];
+
+    fillVertexData(tetra.facets, tetra.color, vertices);
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // position attribute
+    glVertexAttribPointer(0, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)0); // (VERTICES_PER_TETRA_FACET*2) to account for vertex color
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    return tetraVAO;
+}
+
+void fillVertexData(std::vector<TriangleFacet> facets, glm::vec3 color, float vertices[]) {
+    std::vector<float> verticeAndColorssAsSingleArr;
+
+    for (auto& facet : facets) {
+        for (auto& vertex : facet.vertices) {
+            std::vector<float> vecComponents = generateVerticesArrayFromBtVector3(vertex);
+            verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), vecComponents.begin(), vecComponents.end());
+        }
+    }
+
+    std::vector<float> colorAsFloatVec = { color.r, color.g, color.b };
+
+    for (int i = 0; i < verticeAndColorssAsSingleArr.size();) {
+        verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.begin() + i + 3, colorAsFloatVec.begin(), colorAsFloatVec.end());
+        i += 6;
+    }
+    vectorToFloatArray(verticeAndColorssAsSingleArr, vertices);
+}
 
 btVector3 getTetrahedronCenter(Tetrahedron tetrahedron) {
     btVector3 center(0, 0, 0);
@@ -235,18 +288,6 @@ bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 p) {
     float distance = glm::distance(point, center);
     bool isInside = distance <= radius;
     return isInside;
-}
-
-bool arePointsCoplanar(const btVector3& p1, const btVector3& p2, const btVector3& p3, const btVector3& p4) {
-    // Calculate the normal vector of the plane formed by p1, p2, and p3
-    btVector3 normal = (p2 - p1).cross(p3 - p1).normalize();
-
-    // Check if the fourth point lies on the plane
-    float distance = (p4 - p1).dot(normal);
-
-    // Check if the distance from p4 to the plane is close to zero
-    const float epsilon = 1e-6;
-    return std::abs(distance) < epsilon;
 }
 
 bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3 point) {
@@ -372,7 +413,7 @@ Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> meshVertices, gl
     CalculateBoundingBox(meshVertices, minCoords, maxCoords);
 
     // Determine the center of the shape
-    btVector3 center = (minCoords + maxCoords) * 0.5f;
+    btVector3 center = btVector3(0.0f,0.0f,0.0f);
 
     // Calculate the size of the shape (length of its edge)
     float shapeSize = (maxCoords - minCoords).length();
@@ -381,7 +422,7 @@ Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> meshVertices, gl
     float tetrahedronSize = shapeSize * std::sqrt(6.0f);
 
     // Calculate the scale factor to transform the unit tetrahedron to the desired size
-    float scaleFactor = tetrahedronSize / std::sqrt(1.5f);
+    float scaleFactor = tetrahedronSize / std::sqrt(5.0f);
 
     // Determine the vertices of the scaled unit tetrahedron
     btVector3 vertex1(center.x() - scaleFactor, center.y() - scaleFactor, center.z() - scaleFactor);
@@ -424,53 +465,11 @@ Tetrahedron getVertexFather(std::vector<Tetrahedron> tetras, btVector3 point) {
     for (auto& tetra : tetras) {
         if (std::find(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end(), point) != tetra.allSingularVertices.end()) {
             return tetra;
+
         }
     }
 
     return Tetrahedron{ 0,{} ,{} ,{} ,{} };
-}
-
-unsigned int createTetrahedronVAO(Tetrahedron tetra) {
-    unsigned int tetraVBO, tetraVAO;
-    glGenVertexArrays(1, &tetraVAO);
-    glGenBuffers(1, &tetraVBO);
-
-    glBindVertexArray(tetraVAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, tetraVBO);
-    //need to pass this to OpenGL as its simpler to handle strides and stuff
-    float vertices[GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA * 2];
-
-    fillVertexData(tetra.facets, tetra.color, vertices);
-
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // position attribute
-    glVertexAttribPointer(0, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)0); // (VERTICES_PER_TETRA_FACET*2) to account for vertex color
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    return tetraVAO;
-}
-
-void fillVertexData(std::vector<TriangleFacet> facets, glm::vec3 color, float vertices[]) {
-    std::vector<float> verticeAndColorssAsSingleArr;
-
-    for (auto& facet : facets) {
-        for (auto& vertex : facet.vertices) {
-            std::vector<float> vecComponents = generateVerticesArrayFromBtVector3(vertex);
-            verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), vecComponents.begin(), vecComponents.end());
-        }
-    }
-
-    std::vector<float> colorAsFloatVec = { color.r, color.g, color.b };
-
-    for (int i = 0; i < verticeAndColorssAsSingleArr.size();) {
-        verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.begin() + i + 3, colorAsFloatVec.begin(), colorAsFloatVec.end());
-        i += 6;
-    }
-    vectorToFloatArray(verticeAndColorssAsSingleArr, vertices);
 }
 
 Tetrahedron getPointOnEdgeFather(std::vector<Tetrahedron> tetras, btVector3 point) {
@@ -506,48 +505,6 @@ bool isPointOnEdgeOfTetra(Tetrahedron tetra, btVector3 point) {
 }
 
 
-bool isPointOnAFace(std::vector<Tetrahedron> tetras, btVector3 point) {
-    for (auto& tetra : tetras) {
-        if (isPointOnFaceOfTetra(tetra, point))
-            return true;
-    }
-
-    return false;
-}
-
-bool isVectorPassingThroughFacet(btVector3 origin, btVector3 end, TriangleFacet facet) {
-    const float EPSILON = 1e-6;
-    // Calculate the normal vector of the facet
-    btVector3 v0 = facet.vertices[0];
-    btVector3 v1 = facet.vertices[1];
-    btVector3 v2 = facet.vertices[2];
-    btVector3 normal = (v1 - v0).cross(v2 - v0).normalize();
-
-    // Calculate the direction of the vector passing through the facet
-    btVector3 direction = (end - origin).normalize();
-
-    // Check if the vector is passing through the facet
-    if (std::abs(normal.dot(direction)) < EPSILON) {
-        // Vector is parallel to the facet, it does not pass through
-        return false;
-    }
-
-    // Calculate the parameter t for the intersection point
-    float t = (v0 - origin).dot(normal) / direction.dot(normal);
-
-    // Check if the intersection point is within the bounds of the facet
-    if (t >= 0 && t <= 1) {
-        // Calculate the intersection point
-        btVector3 intersection = origin + direction * t;
-
-        // Check if the intersection point is inside the facet
-        if (isPointOnFacet(EPSILON, facet, intersection)) {
-            return true;
-        }
-    }
-
-    return false;
-}
 
 bool isPointOnFaceOfTetra(Tetrahedron tetra, btVector3 point) {
     const float EPSILON = 1e-6;
@@ -586,6 +543,51 @@ bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3) {
 
     // If the cross product is close to zero, the points are collinear
     return crossProduct.length2() < EPSILON;
+}
+
+bool isVectorPassingThroughFacet(btVector3 origin, btVector3 end, TriangleFacet facet) {
+    const float EPSILON = 1e-6;
+    // Calculate the normal vector of the facet
+    btVector3 v0 = facet.vertices[0];
+    btVector3 v1 = facet.vertices[1];
+    btVector3 v2 = facet.vertices[2];
+    btVector3 normal = (v1 - v0).cross(v2 - v0).normalize();
+
+    // Calculate the direction of the vector passing through the facet
+    btVector3 direction = (end - origin).normalize();
+
+    // Check if the vector is passing through the facet
+    if (std::abs(normal.dot(direction)) < EPSILON) {
+        // Vector is parallel to the facet, it does not pass through
+        return false;
+    }
+
+    // Calculate the parameter t for the intersection point
+    float t = (v0 - origin).dot(normal) / direction.dot(normal);
+
+    // Check if the intersection point is within the bounds of the facet
+    if (t >= 0 && t <= 1) {
+        // Calculate the intersection point
+        btVector3 intersection = origin + direction * t;
+
+        // Check if the intersection point is inside the facet
+        if (isPointOnFacet(EPSILON, facet, intersection)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+bool arePointsCoplanar(const btVector3& p1, const btVector3& p2, const btVector3& p3, const btVector3& p4) {
+    // Calculate the normal vector of the plane formed by p1, p2, and p3
+    btVector3 normal = (p2 - p1).cross(p3 - p1).normalize();
+
+    // Check if the fourth point lies on the plane
+    float distance = (p4 - p1).dot(normal);
+
+    // Check if the distance from p4 to the plane is close to zero
+    const float epsilon = 1e-6;
+    return std::abs(distance) < epsilon;
 }
 
 

@@ -65,7 +65,7 @@ struct TetrahedronComparator {
 
 struct TriangleFacetComparator {
     bool operator()(const TriangleFacet& f1, const TriangleFacet& f2) const {
-        
+
         std::set<btVector3, btVector3Comparator> v1;
         for (btVector3 x : f1.vertices) {
             v1.insert(x);

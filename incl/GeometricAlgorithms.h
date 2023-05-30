@@ -14,12 +14,15 @@
 #include "voronoi.h"
 #include "model.h"
 #include "physicsEngine.h"
+#include "defines.h"
+
+
 
 class VoronoiFracturing {
 
 public:
 
-    
+
     PhysicsEngineAbstraction pe;
 
     //Tetrahedrons data-structs
@@ -27,13 +30,13 @@ public:
     std::vector<Tetrahedron> initialTetras;
     //Voronoi data-structs
     std::vector<btRigidBody*> vorRigidBodies;
-    std::map<btRigidBody*, VoronoiMesh> vorToMesh;
+    std::map<btRigidBody*, VoronoiMesh> vorRigidBodyToMesh;
 
     //The model passed has to be made up of tetrahedrons already
     //That is why initialization must be done through the "big" tetrahedron
     VoronoiFracturing(Model* tetrahedronModel, PhysicsEngineAbstraction& pe, btVector3 startingPosition) : pe(pe) { //Will have to generalize to other shapes
-        
-        std::map<Mesh, std::set<btVector3, btVector3Comparator>, MeshComparator> meshToVertices; 
+
+        std::map<Mesh, std::set<btVector3, btVector3Comparator>, MeshComparator> meshToVertices;
 
         for (Mesh mesh : tetrahedronModel->meshes) {
             std::set<btVector3, btVector3Comparator> meshVertices;
@@ -100,23 +103,23 @@ public:
         for (auto& initialTetra : initialTetras) {
             for (auto& vertex : initialTetra.allSingularVertices) {
                 for (auto& tetra : tetrahedrons) {
-                    
+
                     if (tetra.allSingularVertices.find(vertex) != tetra.allSingularVertices.end()) {
                         tetrahedrons.erase(tetra);
                         break;
                     }
                 }
             }
-            
+
         }
     }
 
     //-----------------------------------------FLIPS------------------------------------------------------
-    //----------------------------------------------------------------------------------------------------
+   //----------------------------------------------------------------------------------------------------
 
 
 
-    void flip(Tetrahedron &t1IncidentToP, Tetrahedron &neighbouring, TriangleFacet &oppositeFacet, btVector3 startPos, btVector3 &p) {
+    void flip(Tetrahedron& t1IncidentToP, Tetrahedron& neighbouring, TriangleFacet& oppositeFacet, btVector3 startPos, btVector3& p) {
         //Because verifying if from p two faces are visible or not is expensive, it makes sense to leave the caseTwo as last one
 
         if (caseOne(neighbouring, p)) {
@@ -135,18 +138,18 @@ public:
                     std::vector<Tetrahedron> firstTetraCoupleToFlip = { t1IncidentToP, neighbouring };
                     std::vector<Tetrahedron> secondTetraCoupleToFlip = { neighbourCouple.first , neighbourCouple.second };
                     flip44(firstTetraCoupleToFlip, secondTetraCoupleToFlip, startPos);
-                    
+
                 }
                 else if (caseFour(t1IncidentToP, neighbouring, oppositeFacet, p)) {
                     flip23({ t1IncidentToP, neighbouring }, startPos);
                 }
-            } 
+            }
         }
-        
+
 
     }
 
-    std::pair<int, std::vector<TriangleFacet>> neighbourTetraFacetsVisibleFromP(btVector3 &p, Tetrahedron &neighbour) {
+    std::pair<int, std::vector<TriangleFacet>> neighbourTetraFacetsVisibleFromP(btVector3& p, Tetrahedron& neighbour) {
         int numberOfVisibleFacets = 0;
         std::vector<TriangleFacet> visibleFacets;
         for (auto& facet : neighbour.facets) {
@@ -158,7 +161,7 @@ public:
         return std::make_pair(numberOfVisibleFacets, visibleFacets);
     }
 
-    void getTetraSharingFacet(TriangleFacet& f, bool &found, Tetrahedron &neighbour) {
+    void getTetraSharingFacet(TriangleFacet& f, bool& found, Tetrahedron& neighbour) {
         for (auto& tetra : tetrahedrons) {
             int count = 0;
             for (auto& vertex : f.vertices) {
@@ -173,12 +176,12 @@ public:
                 neighbour = tetra;
                 found = true;
             }
-            
+
         }
         found = false;
     }
 
-    bool caseOne(Tetrahedron& neighbour, btVector3 &p) {
+    bool caseOne(Tetrahedron& neighbour, btVector3& p) {
         return neighbourTetraFacetsVisibleFromP(p, neighbour).first == 1;
     }
 
@@ -230,7 +233,7 @@ public:
         }
 
         bool isThereCoplanarity = isFirstCoplanar || isSecondCoplanar || isThirdCoplanar;
-        
+
         if (!isThereCoplanarity) {
             areCoplanar = false;
             Tetrahedron empty;
@@ -253,7 +256,7 @@ public:
 
             areCoplanar = true;
             return std::make_pair(neighbour1WithP, neighbour2WithOppositeToP);
-            
+
         }
 
     }
@@ -318,7 +321,7 @@ public:
             }
             completeAndInsertTetrahedron(newInsertedTetrahedron, startPos);
             newTetrahedrons.push_back(newInsertedTetrahedron);
-            
+
         }
 
         //I need to remove the original tetrahedron as it is now substituted by the 4 new tetras
@@ -558,69 +561,73 @@ public:
 
     }
 
-    std::vector<VoronoiMesh>  convertToVoronoi(std::vector<Tetrahedron> tetras) {
+    std::vector<VoronoiMesh>  convertToVoronoi(std::set<btVector3,btVector3Comparator> externalVertices,std::set<Tetrahedron, TetrahedronComparator> tetrasSet, btVector3 meshCenter) {
+        std::vector<Tetrahedron> tetras = std::vector<Tetrahedron>(tetrasSet.begin(), tetrasSet.end());
+        
         std::vector<VoronoiMesh> vorMeshes;
-        for (int i = 0; i < tetras.size(); i++) {
-            if (tetras[i].VAO == 6) {
-                tetras.erase(tetras.begin() + i);
-                break;
-            }
-        }
         glm::vec3 color = tetras[0].color;
         std::map <int, btVector3> tetraToVoronoiVertex;
-
-        setupOutgoingEdgesAndCircumcenters( tetraToVoronoiVertex, tetras);
-
         std::set<btVector3, btVector3Comparator> allVertices;
-        for (auto& tetra : tetras)
-            allVertices.insert(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end());
+        setupCircumcentersAndVertices(externalVertices, tetraToVoronoiVertex, tetras, &allVertices);
         
          for (auto& vertex : allVertices) {
-                std::vector<btVector3> meshVertices;
-                std::vector<Tetrahedron> incidentTetras = getTetrasIncidentToVertex(tetras, vertex);
-                for (auto& incidentTetra : incidentTetras) {
-                        btVector3 equivalentVertex = tetraToVoronoiVertex.at(incidentTetra.VAO);
-                        meshVertices.push_back(equivalentVertex);
+             std::vector<Tetrahedron> incidentTetras = getTetrasIncidentToVertex(tetras, vertex);
+                 std::vector<btVector3> meshVertices;
+                 for (auto& incidentTetra : incidentTetras) {
+                     btVector3 equivalentVertex = tetraToVoronoiVertex.at(incidentTetra.VAO);
+                     meshVertices.push_back(equivalentVertex);
 
-                }
-                const int n = meshVertices.size();
-                if (n > 3) {
-                    qh_vertex_t* vertices = QH_MALLOC(qh_vertex_t, n);
+                 }
+                 const int n = meshVertices.size();
+                 if (n >= 4) {
+                     qh_vertex_t* vertices = QH_MALLOC(qh_vertex_t, n);
 
-                    for (int i = 0; i < n; i++) {
-                        vertices[i].x = meshVertices[i].getX();
-                        vertices[i].y = meshVertices[i].getY();
-                        vertices[i].z = meshVertices[i].getZ();
-                    }
+                     for (int i = 0; i < n; i++) {
+                         vertices[i].x = meshVertices[i].getX();
+                         vertices[i].y = meshVertices[i].getY();
+                         vertices[i].z = meshVertices[i].getZ();
+                     }
 
 
-                    qh_mesh_t mesh = qh_quickhull3d(&vertices[0], n);
-                    VoronoiMesh vorMesh = {
-                        0,0,0,
-                        std::set<btVector3, btVector3Comparator>(meshVertices.begin(), meshVertices.end()),
-                        mesh.vertices,
-                        mesh.normals,
-                        mesh.indices,
-                        mesh.normalindices,
-                        mesh.nindices,
-                        mesh.nvertices,
-                        mesh.nnormals,
-                        color
-                    };
-                    vorMeshes.push_back(vorMesh);
-                }
+                     qh_mesh_t mesh = qh_quickhull3d(&vertices[0], n);
+                     VoronoiMesh vorMesh = {
+                         0,0,0,
+                         std::set<btVector3, btVector3Comparator>(meshVertices.begin(), meshVertices.end()),
+                         mesh.vertices,
+                         mesh.normals,
+                         mesh.indices,
+                         mesh.normalindices,
+                         mesh.nindices,
+                         mesh.nvertices,
+                         mesh.nnormals,
+                         color
+                     };
+                     btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, vorMesh, meshCenter);
+                     vorRigidBodies.push_back(vorRigidBody);
+                     vorRigidBodyToMesh[vorRigidBody] = vorMesh;
+                     vorMeshes.push_back(vorMesh);
+                 }
                 
-            
          }
 
         std::cout << "";
+
         return vorMeshes;
        
     }
 
+    void uniqueVerticesFromModel(std::set<btVector3, btVector3Comparator>& uniqueVertices, Model* model) {
 
- 
+        for (Mesh mesh : model->meshes) {
+            std::set<btVector3, btVector3Comparator> meshVertices;
+            uniqueVerticesFromMesh(meshVertices, mesh);
+
+            uniqueVertices.insert(meshVertices.begin(), meshVertices.end());
+        }
+    }
 private:
+
+    
 
     void uniqueVerticesFromMesh(std::set<btVector3, btVector3Comparator>& uniqueVertices, Mesh mesh) {
 
@@ -646,6 +653,25 @@ private:
         }
     }
 
+    void fillVertexData(std::vector<TriangleFacet> facets, glm::vec3 color, float vertices[]) {
+        std::vector<float> verticeAndColorssAsSingleArr;
+
+        for (auto& facet : facets) {
+            for (auto& vertex : facet.vertices) {
+                std::vector<float> vecComponents = generateVerticesArrayFromBtVector3(vertex);
+                verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), vecComponents.begin(), vecComponents.end());
+            }
+        }
+
+        std::vector<float> colorAsFloatVec = { color.r, color.g, color.b };
+
+        for (int i = 0; i < verticeAndColorssAsSingleArr.size();) {
+            verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.begin() + i+3, colorAsFloatVec.begin(), colorAsFloatVec.end());
+            i += 6;
+        }
+        vectorToFloatArray(verticeAndColorssAsSingleArr, vertices);
+    }
+
     TriangleFacet getOppositeFacetToVertice(Tetrahedron tetra, btVector3 vert) {
         for (auto& facet : tetra.facets) {
             if (std::find(facet.vertices.begin(), facet.vertices.end(), vert) == facet.vertices.end()) {
@@ -653,6 +679,30 @@ private:
             }
         }
         throw std::invalid_argument("Strange, didn't find the opposite vertice to this facet in this tetrahedron");
+    }
+
+    unsigned int createTetrahedronVAO(Tetrahedron tetra) {
+        unsigned int tetraVBO, tetraVAO;
+        glGenVertexArrays(1, &tetraVAO);
+        glGenBuffers(1, &tetraVBO);
+
+        glBindVertexArray(tetraVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, tetraVBO);
+        //need to pass this to OpenGL as its simpler to handle strides and stuff
+        float vertices[GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA * 2];
+
+        fillVertexData(tetra.facets, tetra.color, vertices);
+
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        // position attribute
+        glVertexAttribPointer(0, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)0); // (VERTICES_PER_TETRA_FACET*2) to account for vertex color
+        glEnableVertexAttribArray(0);
+
+        glVertexAttribPointer(1, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        return tetraVAO;
     }
 
     Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
@@ -669,8 +719,7 @@ private:
         
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
 
-        //DEBUG
-        int iterations = 0;
+
         Tetrahedron t = tetras.at(randomIndex_t);
         Tetrahedron previous = t;
         bool end = false;
@@ -678,7 +727,6 @@ private:
         std::set<int> tetraPath = {};
         while (!end) {
             verifyNeighbours(tetras, &previous, &t, p, end, &alreadyCheckedFathers, &tetraPath);
-            iterations++;
         }
         if (!isPointInsideTetrahedron(t, p))
             std::cout << "Wrong result!" << endl;
@@ -705,7 +753,6 @@ private:
                         alreadyCheckedNotFathers->insert(neighbour.VAO);
                 }
             }
-
         }
         
         Tetrahedron neighbour_through_f;
@@ -744,7 +791,6 @@ private:
                         }
                         else
                             end = true;
-                            
 
                     }
 
@@ -818,10 +864,25 @@ private:
 
 
 
-    void setupOutgoingEdgesAndCircumcenters(std::map <int, btVector3>& tetraToCircumcenter, std::vector<Tetrahedron> tetras) {
+    void setupCircumcentersAndVertices(std::set<btVector3, btVector3Comparator>externalVertices,  
+        std::map <int, btVector3>& tetraToCircumcenter, std::vector<Tetrahedron> tetras,
+        std::set<btVector3, btVector3Comparator> *allVertices) {
         for (auto& t : tetras) {
-            btVector3 circumcenter = getTetrahedronCenter(t);
-            tetraToCircumcenter.insert({ t.VAO, circumcenter });
+            for (auto& tetra : tetras) {
+                bool isTetraExternal = false;
+                for (auto& externalVertex : externalVertices)
+                    if (tetra.allSingularVertices.find(externalVertex) != tetra.allSingularVertices.end()) {
+                        isTetraExternal = true;
+                        break;
+                    }
+                if (!isTetraExternal) {
+                    allVertices->insert(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end());
+                    btVector3 circumcenter = getTetrahedronCenter(t);
+                    tetraToCircumcenter.insert({ t.VAO, circumcenter });
+                }
+                
+            }
+           
         }
     }
 
