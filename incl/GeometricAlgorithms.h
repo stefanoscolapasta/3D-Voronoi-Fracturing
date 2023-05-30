@@ -710,7 +710,6 @@ private:
         
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
 
-
         Tetrahedron t = tetras.at(randomIndex_t);
         Tetrahedron previous = t;
         bool end = false;
@@ -735,48 +734,19 @@ private:
         TriangleFacet f;
         //edge <-> facet
         // triangle <-> tetrahedron
+
         int randomIndex_f = std::rand() % 4; //random index from 0 to 2- every tetra has 4 fixed facets
         int facetIndex = randomIndex_f;
-        f = t->facets[randomIndex_f];
-        if (verifyFacetOrientationConditions(t, f, p, tetras)) {
-            updatePath(t_neighbours, f, neighbour_through_f, previous, t, tetraPath);
-        }
-        //point is neighbour of "previous" through facet f
-        else {
-            facetIndex = (randomIndex_f + 1) % 4;
-            f = t->facets[facetIndex];
+
+        for (int facetCount = 0; facetCount < 4; facetCount++) {
+            f = t->facets[(randomIndex_f + facetCount)%4];
             if (verifyFacetOrientationConditions(t, f, p, tetras)) {
                 updatePath(t_neighbours, f, neighbour_through_f, previous, t, tetraPath);
-            }
-            else {
-                facetIndex = (randomIndex_f + 2) % 4;
-                f = t->facets[facetIndex];
-                if (verifyFacetOrientationConditions(t, f, p, tetras)) {
-                    updatePath(t_neighbours, f, neighbour_through_f, previous, t, tetraPath);
-                }
-                else
-                {
-                    facetIndex = (randomIndex_f + 3) % 4;
-                    f = t->facets[facetIndex];
-                    if (verifyFacetOrientationConditions(t,  f, p, tetras)) {
-                        updatePath(t_neighbours, f, neighbour_through_f, previous, t, tetraPath);
-                    }
-                    else {
-                        if (!isPointInsideTetrahedron(*t, p)) {
-                            std::cout << "ERROR";
-                        }
-                        else {
-                            end = true;
-                        }
-                            
-
-                    }
-
-                }
-
-
+                return;
             }
         }
+        end = true;
+
     }
 
     bool verifyFacetOrientationConditions(Tetrahedron *t, TriangleFacet f, btVector3 p,  std::vector<Tetrahedron> tetras) {
