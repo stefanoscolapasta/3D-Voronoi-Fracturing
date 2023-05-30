@@ -9,6 +9,7 @@
 #include <algorithm>
 #include<math.h> 
 #include <random>
+#include "defines.h"
 #include "mesh.h"
 #include "camera.h"
 #include "tetrahedron.h"
@@ -20,6 +21,8 @@
 
 //OPENGL UTILS
 bool isSimulationStarted();
+bool wasNewPointInserted();
+void resetPointInsertionTrigger();
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
@@ -43,6 +46,8 @@ bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 P);
 
 
 //TETRAS
+unsigned int createTetrahedronVAO(Tetrahedron tetra);
+void fillVertexData(std::vector<TriangleFacet> facets, glm::vec3 color, float vertices[]);
 void generateVerticesFromMesh(Mesh meshModel, std::vector<btVector3>& meshVertices);
 btVector3 extractRandomPointInsideTetrahedron(Tetrahedron tetrahedron);
 Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> shapeVertices, glm::vec3 meshColor);

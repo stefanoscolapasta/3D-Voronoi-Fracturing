@@ -2,7 +2,7 @@
 
 //OPENGL UTILS
 bool startSimulation = false;
-
+bool insertNewPointTrigger = false;
 // timing
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -17,6 +17,13 @@ bool accelerationMultiplier = false;
 
 bool isSimulationStarted() {
     return startSimulation;
+}
+
+bool wasNewPointInserted() {
+    return insertNewPointTrigger;
+}
+void resetPointInsertionTrigger() {
+    insertNewPointTrigger = false;
 }
 
 Camera getCamera() {
@@ -53,6 +60,9 @@ void processInput(GLFWwindow* window)
         camera.ProcessKeyboard(LEFT, deltaTime, accelerationMultiplier);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime, accelerationMultiplier);
+
+    if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS)
+        insertNewPointTrigger = true;
 
     if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
         startSimulation = true;
@@ -405,7 +415,7 @@ Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> meshVertices, gl
         }
     }
 
-
+    tetrahedron.VAO = createTetrahedronVAO(tetrahedron);
     tetrahedron.allSingularVertices = std::set<btVector3, btVector3Comparator>( uniqueVertices.begin(), uniqueVertices.end());
     return tetrahedron;
 }
@@ -418,6 +428,49 @@ Tetrahedron getVertexFather(std::vector<Tetrahedron> tetras, btVector3 point) {
     }
 
     return Tetrahedron{ 0,{} ,{} ,{} ,{} };
+}
+
+unsigned int createTetrahedronVAO(Tetrahedron tetra) {
+    unsigned int tetraVBO, tetraVAO;
+    glGenVertexArrays(1, &tetraVAO);
+    glGenBuffers(1, &tetraVBO);
+
+    glBindVertexArray(tetraVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, tetraVBO);
+    //need to pass this to OpenGL as its simpler to handle strides and stuff
+    float vertices[GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA * 2];
+
+    fillVertexData(tetra.facets, tetra.color, vertices);
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // position attribute
+    glVertexAttribPointer(0, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)0); // (VERTICES_PER_TETRA_FACET*2) to account for vertex color
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, VERTICES_PER_TETRA_FACET, GL_FLOAT, GL_FALSE, (VERTICES_PER_TETRA_FACET * 2) * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    return tetraVAO;
+}
+
+void fillVertexData(std::vector<TriangleFacet> facets, glm::vec3 color, float vertices[]) {
+    std::vector<float> verticeAndColorssAsSingleArr;
+
+    for (auto& facet : facets) {
+        for (auto& vertex : facet.vertices) {
+            std::vector<float> vecComponents = generateVerticesArrayFromBtVector3(vertex);
+            verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.end(), vecComponents.begin(), vecComponents.end());
+        }
+    }
+
+    std::vector<float> colorAsFloatVec = { color.r, color.g, color.b };
+
+    for (int i = 0; i < verticeAndColorssAsSingleArr.size();) {
+        verticeAndColorssAsSingleArr.insert(verticeAndColorssAsSingleArr.begin() + i + 3, colorAsFloatVec.begin(), colorAsFloatVec.end());
+        i += 6;
+    }
+    vectorToFloatArray(verticeAndColorssAsSingleArr, vertices);
 }
 
 Tetrahedron getPointOnEdgeFather(std::vector<Tetrahedron> tetras, btVector3 point) {

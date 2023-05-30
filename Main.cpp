@@ -86,25 +86,25 @@ int main()
     generateVerticesFromMesh(model->meshes[0], generatedVerticesFromMesh);
     Tetrahedron meshEncapsulatingTetrahedron = CreateTetrahedronAroundShape(generatedVerticesFromMesh, glm::vec3(1, 1, 1));
 
-    VoronoiFracturing vorFrac(meshEncapsulatingTetrahedron, pe, cubePositions[0]);
+    VoronoiFracturing vorFrac(meshEncapsulatingTetrahedron, pe);
     std::cout << generatedVerticesFromMesh.size() << "\n";
 
     //NB: here we should insert a random point contained in the big tetra
     int count = 0;
-    for (int i = 0; i < 100;i++) {
+    /*for (int i = 0; i < 3; i++) {
         btVector3 randomPoint = extractRandomPointInsideTetrahedron(meshEncapsulatingTetrahedron);
         vorFrac.insertOnePoint(randomPoint, cubePositions[0]);
         count += 1;
         std::cout << count << "\n";
-    }
+    }*/
+
+    //vorFrac.removeExtraTetrahedrons();
 
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);
     btRigidBody* cubeTerrainRigidbody = pe.generateStaticCubeRigidbody(cubePositions[1], btVector3(5.0f, 0.5f, 5.0f), btVector3(1.0f, 1.0f, 1.0f));
+
     pe.dynamicsWorld->addRigidBody(cubeTerrainRigidbody, 1, 1);
-
-    btRigidBody* initialTetra = *(vorFrac.tetraRigidbodies.begin());
-    //I added the centroid (kinda)
-
+    
     MyContactResultCallback collisionResult;
 
     bool hasCollided = false;
@@ -150,8 +150,12 @@ int main()
             pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
         }
 
-
-        if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) {
+        if (wasNewPointInserted()) {
+            resetPointInsertionTrigger();
+            btVector3 randomPoint = extractRandomPointInsideTetrahedron(meshEncapsulatingTetrahedron);
+            vorFrac.insertOnePoint(randomPoint, cubePositions[0]);
+        }
+        /*if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) {
 
             vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)
             if (!hasCollided) {
@@ -167,12 +171,14 @@ int main()
                 createVoronoiVAO(vorMesh);
                 vorFrac.vorToMesh[vorRigidBody] = vorMesh;
             }
-        }
+        }*/
 
         if (!hasCollided) {
-            for (auto& rb : vorFrac.tetraRigidbodies) {
-                glBindVertexArray(vorFrac.rigidbodyToVAO[rb]);
-                ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(rb));
+            for (auto& tetra : vorFrac.tetrahedrons) {
+                glBindVertexArray(tetra.VAO);
+                glm::mat4 model = glm::mat4(1.0);
+                model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f));
+                ourShader.setMat4("model", model);
                 //Here we need the VAO for each tetrahedron as their shape is not always the same
                 glDrawArrays(GL_LINE_STRIP, 0, FACETS_PER_TETRA * VERTICES_PER_TETRA_FACET);
             }
