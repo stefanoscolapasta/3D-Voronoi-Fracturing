@@ -707,15 +707,6 @@ private:
 
     Tetrahedron stochasticWalk(std::vector<Tetrahedron> tetras, btVector3 p) {
         Tetrahedron father;
-        father = getVertexFather(tetras, p);
-        if (father.VAO != 0)
-            return father;
-        father = getPointOnEdgeFather(tetras, p);
-        if (father.VAO != 0)
-            return father;
-        father = getPointOnFaceFather(tetras, p);
-        if (father.VAO != 0)
-            return father;
         
         int randomIndex_t = std::rand() % tetras.size(); //random index between 0 and size of tetras
 
@@ -723,37 +714,22 @@ private:
         Tetrahedron t = tetras.at(randomIndex_t);
         Tetrahedron previous = t;
         bool end = false;
-        std::set<int> alreadyCheckedFathers = {};
         std::set<int> tetraPath = {};
         while (!end) {
-            verifyNeighbours(tetras, &previous, &t, p, end, &alreadyCheckedFathers, &tetraPath);
+            verifyNeighbours(tetras, &previous, &t, p, end, &tetraPath);
         }
         if (!isPointInsideTetrahedron(t, p))
             std::cout << "Wrong result!" << endl;
         return t;
     }
 
-    void verifyNeighbours(std::vector<Tetrahedron> tetras, Tetrahedron* previous, Tetrahedron* t, btVector3 p, bool& end, std::set<int> *alreadyCheckedNotFathers, std::set<int> *tetraPath) {
+    void verifyNeighbours(std::vector<Tetrahedron> tetras, Tetrahedron* previous, Tetrahedron* t, btVector3 p, bool& end, std::set<int> *tetraPath) {
         if (isPointInsideTetrahedron(*t, p)) {
             end = true;
             return;
         }
 
-        std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t);
-        //check if p is inside one of the neighbours
-        if (previous->VAO == t->VAO) {
-            for (auto& neighbour : t_neighbours) {
-                if (alreadyCheckedNotFathers->find(neighbour.VAO) == alreadyCheckedNotFathers->end()) {
-                    if (isPointInsideTetrahedron(neighbour, p)) {
-                        *t = neighbour;
-                        end = true;
-                        return;
-                    }
-                    else
-                        alreadyCheckedNotFathers->insert(neighbour.VAO);
-                }
-            }
-        }
+        std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t); //39ms
         
         Tetrahedron neighbour_through_f;
         TriangleFacet f;
@@ -789,8 +765,10 @@ private:
                         if (!isPointInsideTetrahedron(*t, p)) {
                             std::cout << "ERROR";
                         }
-                        else
+                        else {
                             end = true;
+                        }
+                            
 
                     }
 
