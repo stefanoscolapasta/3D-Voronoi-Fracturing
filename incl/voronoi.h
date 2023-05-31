@@ -21,7 +21,32 @@ struct VoronoiMesh {
 };
 
 
+double calculateBoundingBoxVolume(VoronoiMesh voronoiMesh) {
+	// Calculate the volume of the bounding box of a VoronoiMesh
 
+	// Get the initial minimum and maximum bounds
+	btVector3 minBound = *voronoiMesh.allUniqueVertices.begin();
+	btVector3 maxBound = *voronoiMesh.allUniqueVertices.begin();
+
+	// Update the bounds by iterating over all the vertices
+	for (const btVector3& vertex : voronoiMesh.allUniqueVertices) {
+		// Update the minimum and maximum bounds if necessary
+		minBound.setX(std::min(minBound.x(), vertex.x()));
+		minBound.setY(std::min(minBound.y(), vertex.y()));
+		minBound.setZ(std::min(minBound.z(), vertex.z()));
+
+		maxBound.setX(std::max(maxBound.x(), vertex.x()));
+		maxBound.setY(std::max(maxBound.y(), vertex.y()));
+		maxBound.setZ(std::max(maxBound.z(), vertex.z()));
+	}
+
+	// Calculate the dimensions of the bounding box
+	double length = maxBound.x() - minBound.x();
+	double width = maxBound.y() - minBound.y();
+	double height = maxBound.z() - minBound.z();
+	double volume = length * width * height;
+	return volume;
+}
 
 
 btVector3 getVoronoiMeshCenter(VoronoiMesh mesh) {
@@ -61,7 +86,7 @@ btRigidBody* addVoronoiRigidBody(PhysicsEngineAbstraction pe, VoronoiMesh vorono
 		btVector3(1.0f, 1.0f, 1.0f)
 	);
 
-	pe.dynamicsWorld->addRigidBody(voronoiRigidBody,1,1);
+	pe.dynamicsWorld->addRigidBody(voronoiRigidBody);
 	return voronoiRigidBody;
 }
 
@@ -82,16 +107,26 @@ void createVoronoiVAO(VoronoiMesh& voronoi) {
 	// Create element buffer object (EBO)
 	glGenBuffers(1, &voronoiEBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, voronoiEBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, voronoi.nindices * sizeof(unsigned int*), voronoi.indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, voronoi.nindices * sizeof(unsigned int), voronoi.indices, GL_STATIC_DRAW);
 
 	// Create vertex array object (VAO)
 	glGenVertexArrays(1, &voronoiVAO);
 	glBindVertexArray(voronoiVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, voronoiVBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, voronoiEBO);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(qh_vertex_t), (void*)0);
 	glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(qh_vertex_t), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(3);
+
+
+
+
 	glBindVertexArray(0);
+
 
 	voronoi.VAO = voronoiVAO;
 	voronoi.VBO = voronoiVBO;

@@ -75,15 +75,15 @@ int main()
     // load models
     // -----------
 
-    Model* model = new Model("geom/icosphere.obj");
+    Model model("monkey/monkey.obj");
 
     PhysicsEngineAbstraction pe;
     std::vector<btVector3> generatedVerticesFromMesh;
-    generateVerticesFromMesh(model->meshes[0], generatedVerticesFromMesh);
+    generateVerticesFromMesh(model.meshes[0], generatedVerticesFromMesh);
     Tetrahedron tetraEncapsulatingMesh = CreateTetrahedronAroundShape(generatedVerticesFromMesh, glm::vec3(1, 1, 1));
     VoronoiFracturing vorFrac(tetraEncapsulatingMesh, pe);
     int count = 0;
-    for (int i = 0; i < 50;i++) {
+    for (int i = 0; i < 100;i++) {
         btVector3 randomPoint = extractRandomPointInsideTetrahedron(tetraEncapsulatingMesh);
         vorFrac.insertOnePoint(randomPoint, cubePositions[0]);
         count += 1;
@@ -145,38 +145,37 @@ int main()
              if (!isCollided) {
                 isCollided = true;
             }
+            
+             btTransform trans;
+             modelRigidBody->getMotionState()->getWorldTransform(trans);
+             btVector3 meshCenter = trans.getOrigin();
             pe.dynamicsWorld->removeRigidBody(modelRigidBody);
             pe.dynamicsWorld->removeCollisionObject(modelRigidBody);
-            std::vector<VoronoiMesh> voronoiResult=vorFrac.convertToVoronoi(tetraEncapsulatingMesh.allSingularVertices,vorFrac.tetrahedrons, modelRigidBody->getCenterOfMassTransform().getOrigin());
+            std::vector<VoronoiMesh> voronoiResult=vorFrac.convertToVoronoi( meshCenter, glm::vec3(0.2f,0.3f,0.6f));
         }
 
         if (!isCollided) {
-            for (auto& tetra : vorFrac.tetrahedrons) {
-                glBindVertexArray(tetra.VAO);
-                glm::mat4 model = glm::mat4(1.0);
-                model = glm::scale(model, glm::vec3(0.25f, 0.25f, 0.25f));
-                ourShader.setMat4("model", model);
-                //Here we need the VAO for each tetrahedron as their shape is not always the same
-                glDrawArrays(GL_LINE_STRIP, 0, FACETS_PER_TETRA * VERTICES_PER_TETRA_FACET);
-            }
             //MODEL DRAWING
             ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(modelRigidBody));
-            model->Draw(ourShader);
+            model.Draw(ourShader);
         }
-        for (auto& vorRigidbody : vorFrac.vorRigidBodies) {
-            
-            VoronoiMesh mesh = vorFrac.vorRigidBodyToMesh[vorRigidbody];
-            createVoronoiVAO(mesh);
-            glBindVertexArray(mesh.VAO);
-            glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.EBO);
-            ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(vorRigidbody));
-            // Draw the mesh using indexed rendering
-            glDrawElements(GL_LINE_STRIP, mesh.nindices, GL_UNSIGNED_INT, 0);
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
+        else {
+            for (auto& vorRigidbody : vorFrac.vorRigidBodies) {
+
+                VoronoiMesh mesh = vorFrac.vorRigidBodyToMesh[vorRigidbody];
+                createVoronoiVAO(mesh);
+                glBindVertexArray(mesh.VAO);
+                glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.EBO);
+                ourShader.setMat4("model", pe.getUpdatedGLModelMatrix(vorRigidbody));
+                // Draw the mesh using indexed rendering
+                glDrawElements(GL_TRIANGLE_STRIP, mesh.nindices, GL_UNSIGNED_INT, 0);
+                glBindBuffer(GL_ARRAY_BUFFER, 0);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+                glBindVertexArray(0);
+            }
         }
+        
         
 
         glBindVertexArray(cubeVAO);

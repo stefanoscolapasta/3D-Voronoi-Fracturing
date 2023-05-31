@@ -28,6 +28,7 @@ public:
     //Tetrahedrons data-structs
     std::set<Tetrahedron, TetrahedronComparator> tetrahedrons;
     std::vector<Tetrahedron> initialTetras;
+    std::map<unsigned int, std::vector<Tetrahedron>> tetraToNeighbours;
     //Voronoi data-structs
     std::vector<btRigidBody*> vorRigidBodies;
     std::map<btRigidBody*, VoronoiMesh> vorRigidBodyToMesh;
@@ -482,7 +483,6 @@ public:
     void completeAndInsertTetrahedron(Tetrahedron& tetra, btVector3 startPos) {
         tetra.color = glm::vec3(1, 1, 1);
         tetra.VAO = createTetrahedronVAO(tetra);
-
         tetrahedrons.insert(tetra);
     }
 
@@ -561,31 +561,32 @@ public:
 
     }
 
-    std::vector<VoronoiMesh>  convertToVoronoi(std::set<btVector3,btVector3Comparator> externalVertices,std::set<Tetrahedron, TetrahedronComparator> tetrasSet, btVector3 meshCenter) {
-        std::vector<Tetrahedron> tetras = std::vector<Tetrahedron>(tetrasSet.begin(), tetrasSet.end());
-        
+    std::vector<VoronoiMesh>  convertToVoronoi( btVector3 meshCenter, glm::vec3 color) {
+        std::vector<Tetrahedron> tetras = std::vector<Tetrahedron>(tetrahedrons.begin(), tetrahedrons.end());
         std::vector<VoronoiMesh> vorMeshes;
-        glm::vec3 color = tetras[0].color;
         std::map <int, btVector3> tetraToVoronoiVertex;
         std::set<btVector3, btVector3Comparator> allVertices;
-        setupCircumcentersAndVertices(externalVertices, tetraToVoronoiVertex, tetras, &allVertices);
+        setupCircumcentersAndVertices(tetraToVoronoiVertex, tetras, &allVertices);
         
          for (auto& vertex : allVertices) {
              std::vector<Tetrahedron> incidentTetras = getTetrasIncidentToVertex(tetras, vertex);
                  std::vector<btVector3> meshVertices;
                  for (auto& incidentTetra : incidentTetras) {
-                     btVector3 equivalentVertex = tetraToVoronoiVertex.at(incidentTetra.VAO);
-                     meshVertices.push_back(equivalentVertex);
+                     if (tetraToVoronoiVertex.find(incidentTetra.VAO) != tetraToVoronoiVertex.end()) {
+                         btVector3 equivalentVertex = tetraToVoronoiVertex.at(incidentTetra.VAO);
+                         meshVertices.push_back(equivalentVertex);
+                     }
 
                  }
                  const int n = meshVertices.size();
-                 if (n >= 4) {
+                 if (n >3 ) {
                      qh_vertex_t* vertices = QH_MALLOC(qh_vertex_t, n);
 
                      for (int i = 0; i < n; i++) {
                          vertices[i].x = meshVertices[i].getX();
                          vertices[i].y = meshVertices[i].getY();
                          vertices[i].z = meshVertices[i].getZ();
+                         vertices[i].color = color;
                      }
 
 
@@ -602,10 +603,19 @@ public:
                          mesh.nnormals,
                          color
                      };
-                     btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, vorMesh, meshCenter);
-                     vorRigidBodies.push_back(vorRigidBody);
-                     vorRigidBodyToMesh[vorRigidBody] = vorMesh;
-                     vorMeshes.push_back(vorMesh);
+                     double meshVolume = calculateBoundingBoxVolume(vorMesh);
+                     if (meshVolume < 20.0) {
+                         btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, vorMesh, meshCenter);
+                         btTransform centerOfMassTransform;
+                         centerOfMassTransform.setIdentity();
+                         btVector3 centerOfMassPosition(getVoronoiMeshCenter(vorMesh));
+                         centerOfMassTransform.setOrigin(meshCenter);
+                         vorRigidBody->setCenterOfMassTransform(centerOfMassTransform);
+                         vorRigidBodies.push_back(vorRigidBody);
+                         vorRigidBodyToMesh[vorRigidBody] = vorMesh;
+                         vorMeshes.push_back(vorMesh);
+                     }
+
                  }
                 
          }
@@ -616,9 +626,9 @@ public:
        
     }
 
-    void uniqueVerticesFromModel(std::set<btVector3, btVector3Comparator>& uniqueVertices, Model* model) {
+    void uniqueVerticesFromModel(std::set<btVector3, btVector3Comparator>& uniqueVertices, Model model) {
 
-        for (Mesh mesh : model->meshes) {
+        for (Mesh mesh : model.meshes) {
             std::set<btVector3, btVector3Comparator> meshVertices;
             uniqueVerticesFromMesh(meshVertices, mesh);
 
@@ -727,9 +737,14 @@ private:
             end = true;
             return;
         }
-
-        std::vector<Tetrahedron> t_neighbours = getNeighbours(tetras, *t); //39ms
-        
+        std::vector<Tetrahedron> t_neighbours;
+        if(tetraToNeighbours.find(t-> VAO )!= tetraToNeighbours.end())
+            t_neighbours = tetraToNeighbours[t->VAO];
+        else {
+            t_neighbours = getNeighbours(tetras, *t);
+            tetraToNeighbours[t->VAO] = t_neighbours;
+        }
+            
         Tetrahedron neighbour_through_f;
         TriangleFacet f;
         //edge <-> facet
@@ -746,7 +761,6 @@ private:
             }
         }
         end = true;
-
     }
 
     bool verifyFacetOrientationConditions(Tetrahedron *t, TriangleFacet f, btVector3 p,  std::vector<Tetrahedron> tetras) {
@@ -796,6 +810,7 @@ private:
         }
 
         if (tetraPath->find(neighbour_through_f.VAO) != tetraPath->end()) {
+            std::cout << "Already visited" << endl;
             int randomIndex;
             do {
                 randomIndex = std::rand() % t_neighbours.size();
@@ -812,25 +827,12 @@ private:
 
 
 
-    void setupCircumcentersAndVertices(std::set<btVector3, btVector3Comparator>externalVertices,  
-        std::map <int, btVector3>& tetraToCircumcenter, std::vector<Tetrahedron> tetras,
+    void setupCircumcentersAndVertices( std::map <int, btVector3>& tetraToCircumcenter, std::vector<Tetrahedron> tetras,
         std::set<btVector3, btVector3Comparator> *allVertices) {
-        for (auto& t : tetras) {
-            for (auto& tetra : tetras) {
-                bool isTetraExternal = false;
-                for (auto& externalVertex : externalVertices)
-                    if (tetra.allSingularVertices.find(externalVertex) != tetra.allSingularVertices.end()) {
-                        isTetraExternal = true;
-                        break;
-                    }
-                if (!isTetraExternal) {
-                    allVertices->insert(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end());
-                    btVector3 circumcenter = getTetrahedronCenter(t);
-                    tetraToCircumcenter.insert({ t.VAO, circumcenter });
-                }
-                
-            }
-           
+        for (auto& tetra : tetras) {
+                allVertices->insert(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end());
+                btVector3 circumcenter = getTetrahedronCenter(tetra);
+                tetraToCircumcenter.insert({ tetra.VAO, circumcenter });
         }
     }
 

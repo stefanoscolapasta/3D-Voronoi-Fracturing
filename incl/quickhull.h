@@ -60,6 +60,7 @@ typedef struct qh_vertex {
             float z;
         };
     };
+    glm::vec3 color;
 } qh_vertex_t;
 
 typedef qh_vertex_t qh_vec3_t;
@@ -167,10 +168,10 @@ typedef struct qh_context {
     unsigned int nvertices;
     unsigned int nfaces;
 
-    #ifdef QUICKHULL_DEBUG
+#ifdef QUICKHULL_DEBUG
     unsigned int maxfaces;
     unsigned int maxedges;
-    #endif
+#endif
 } qh_context_t;
 
 void qh__find_6eps(qh_vertex_t* vertices, unsigned int nvertices, qh_index_t* eps)
@@ -240,7 +241,8 @@ float qh__vertex_segment_length2(qh_vertex_t* p, qh_vertex_t* a, qh_vertex_t* b)
             x = b->x;
             y = b->y;
             z = b->z;
-        } else if (t > 0) {
+        }
+        else if (t > 0) {
             x += dx * t;
             y += dy * t;
             z += dz * t;
@@ -278,8 +280,8 @@ void qh__vec3_multiply(qh_vec3_t* a, float v)
 int qh__vertex_equals_epsilon(qh_vertex_t* a, qh_vertex_t* b, float epsilon)
 {
     return fabs(a->x - b->x) <= epsilon &&
-           fabs(a->y - b->y) <= epsilon &&
-           fabs(a->z - b->z) <= epsilon;
+        fabs(a->y - b->y) <= epsilon &&
+        fabs(a->z - b->z) <= epsilon;
 }
 
 float qh__vec3_length2(qh_vec3_t* v)
@@ -539,7 +541,8 @@ int qh__face_can_see_vertex_epsilon(qh_context_t* context, qh_face_t* face, qh_v
 
     if (dot > epsilon) {
         return 1;
-    } else {
+    }
+    else {
         dot = fabsf(dot);
 
         if (dot <= epsilon && dot >= 0) {
@@ -645,9 +648,9 @@ int qh__test_hull(qh_context_t* context, float epsilon, int testiset)
             qh_vertex_t vertex = context->vertices[vindex];
             qh__vec3_sub(&vertex, &face->centroid);
             if (qh__vec3_dot(&face->normal, &vertex) > epsilon) {
-                #ifdef QUICKHULL_DEBUG
+#ifdef QUICKHULL_DEBUG
                 qh__log_face(context, face);
-                #endif
+#endif
                 return 0;
             }
         }
@@ -665,9 +668,9 @@ void qh__build_hull(qh_context_t* context, float epsilon)
     qh_index_t topface = qh__pop_stack(&context->facestack);
     int i, j, k;
 
-    #ifdef QUICKHULL_DEBUG
+#ifdef QUICKHULL_DEBUG
     unsigned int iteration = 0;
-    #endif
+#endif
 
     while (topface != -1) {
         qh_face_t* face = context->faces + topface;
@@ -675,17 +678,17 @@ void qh__build_hull(qh_context_t* context, float epsilon)
         qh_vertex_t* fv;
         int reversed = 0;
 
-        #ifdef QUICKHULL_DEBUG
+#ifdef QUICKHULL_DEBUG
         if (!context->valid[topface] || face->iset.size == 0 || iteration == step)
-        #else
+#else
         if (!context->valid[topface] || face->iset.size == 0)
-        #endif
+#endif
         {
             topface = qh__pop_stack(&context->facestack);
             continue;
         }
 
-        #ifdef QUICKHULL_DEBUG
+#ifdef QUICKHULL_DEBUG
         if (failurestep != NULL && !qh__test_hull(context, epsilon, 1)) {
             if (*failurestep == 0) {
                 *failurestep = iteration;
@@ -694,7 +697,7 @@ void qh__build_hull(qh_context_t* context, float epsilon)
         }
 
         iteration++;
-        #endif
+#endif
 
         fvi = qh__furthest_point_from_plane(context, face->iset.indices,
             face->iset.size, &face->normal, face->sdist);
@@ -722,7 +725,8 @@ void qh__build_hull(qh_context_t* context, float epsilon)
                     context->valid[tovisit] = 0;
                     tovisit = qh__pop_stack(&context->scratch);
                     facetovisit = context->faces + tovisit;
-                } else {
+                }
+                else {
                     qh_index_t edgeindex = facetovisit->edges[facetovisit->visitededges];
                     qh_half_edge_t* edge;
                     qh_half_edge_t* oppedge;
@@ -742,7 +746,8 @@ void qh__build_hull(qh_context_t* context, float epsilon)
 
                     if (!qh__face_can_see_vertex(adjface, fv)) {
                         qh__push_stack(&context->horizonedges, edge->he);
-                    } else {
+                    }
+                    else {
                         context->valid[tovisit] = 0;
                         qh__push_stack(&context->scratch, adjface->face);
                     }
@@ -773,7 +778,7 @@ void qh__build_hull(qh_context_t* context, float epsilon)
 
                     if (phe1vert == he0vert || phe0vert == he1vert) {
                         QH_SWAP(qh_index_t, context->horizonedges.begin[j],
-                                context->horizonedges.begin[i + 1]);
+                            context->horizonedges.begin[i + 1]);
                         break;
                     }
                 }
@@ -918,9 +923,10 @@ void qh__build_hull(qh_context_t* context, float epsilon)
                 int ii;
 
                 if (reversed) {
-                    ii = (i == 0) ? context->newhorizonedges.size - 1 : (i-1);
-                } else {
-                    ii = (i+1) % context->newhorizonedges.size;
+                    ii = (i == 0) ? context->newhorizonedges.size - 1 : (i - 1);
+                }
+                else {
+                    ii = (i + 1) % context->newhorizonedges.size;
                 }
 
                 phe0 = context->edges[context->newhorizonedges.begin[i]].previous_he;
@@ -977,9 +983,9 @@ void qh_mesh_export(qh_mesh_t const* mesh, char const* filename)
 
     for (int i = 0, j = 0; i < mesh->nindices; i += 3, j++) {
         fprintf(objfile, "f %u/%u %u/%u %u/%u\n",
-            mesh->indices[i+0] + 1, mesh->normalindices[j] + 1,
-            mesh->indices[i+1] + 1, mesh->normalindices[j] + 1,
-            mesh->indices[i+2] + 1, mesh->normalindices[j] + 1);
+            mesh->indices[i + 0] + 1, mesh->normalindices[j] + 1,
+            mesh->indices[i + 1] + 1, mesh->normalindices[j] + 1,
+            mesh->indices[i + 2] + 1, mesh->normalindices[j] + 1);
     }
 
     fclose(objfile);
@@ -1034,7 +1040,7 @@ qh_face_t* qh__build_tetrahedron(qh_context_t* context, float epsilon)
         for (i = 0; i < 3; ++i) {
             qh_half_edge_t* edge = context->edges + faces[0].edges[i];
             qh_half_edge_t prevedge = context->edges[edge->previous_he];
-            qh_face_t* face = faces+i+1;
+            qh_face_t* face = faces + i + 1;
             qh_half_edge_t* e0;
 
             facevertices[0] = edge->to_vertex;
@@ -1044,7 +1050,7 @@ qh_face_t* qh__build_tetrahedron(qh_context_t* context, float epsilon)
             qh__next_face(context);
             qh__face_init(face, facevertices, context);
 
-            e0 = context->edges + faces[i+1].edges[0];
+            e0 = context->edges + faces[i + 1].edges[0];
             edge->opposite_he = e0->he;
             e0->opposite_he = edge->he;
         }
@@ -1058,10 +1064,10 @@ qh_face_t* qh__build_tetrahedron(qh_context_t* context, float epsilon)
             qh_half_edge_t* e1;
             qh_half_edge_t* e2;
 
-            j = (i+2) % 3;
+            j = (i + 2) % 3;
 
-            face = faces+i+1;
-            nextface = faces+j+1;
+            face = faces + i + 1;
+            nextface = faces + j + 1;
 
             e1 = context->edges + face->edges[1];
             e2 = context->edges + nextface->edges[2];
@@ -1149,10 +1155,10 @@ void qh__remove_vertex_duplicates(qh_context_t* context, float epsilon)
         if (v->z == 0) v->z = 0;
         for (j = i + 1; j < context->nvertices; ++j) {
             if (qh__vertex_equals_epsilon(context->vertices + i,
-                        context->vertices + j, epsilon))
+                context->vertices + j, epsilon))
             {
                 for (k = j; k < context->nvertices - 1; ++k) {
-                    context->vertices[k] = context->vertices[k+1];
+                    context->vertices[k] = context->vertices[k + 1];
                 }
                 context->nvertices--;
             }
@@ -1187,10 +1193,10 @@ void qh__init_context(qh_context_t* context, qh_vertex_t const* vertices, unsign
     context->horizonedges.size = 0;
     context->newhorizonedges.size = 0;
 
-    #ifdef QUICKHULL_DEBUG
+#ifdef QUICKHULL_DEBUG
     context->maxfaces = nfaces;
     context->maxedges = nedges;
-    #endif
+#endif
 }
 
 void qh__free_context(qh_context_t* context)
@@ -1267,11 +1273,11 @@ qh_mesh_t qh_quickhull3d(qh_vertex_t const* vertices, unsigned int nvertices)
     qh__build_tetrahedron(&context, epsilon);
 
     // Build the convex hull
-    #ifdef QUICKHULL_DEBUG
+#ifdef QUICKHULL_DEBUG
     qh__build_hull(&context, epsilon, -1, NULL);
-    #else
+#else
     qh__build_hull(&context, epsilon);
-    #endif
+#endif
 
     // QH_ASSERT(qh__test_hull(&context, epsilon));
 
@@ -1307,9 +1313,9 @@ qh_mesh_t qh_quickhull3d(qh_vertex_t const* vertices, unsigned int nvertices)
         index = 0;
         for (i = 0; i < context.nfaces; ++i) {
             if (!context.valid[i]) { continue; }
-            m.indices[index+0] = index+0;
-            m.indices[index+1] = index+1;
-            m.indices[index+2] = index+2;
+            m.indices[index + 0] = index + 0;
+            m.indices[index + 1] = index + 1;
+            m.indices[index + 2] = index + 2;
             index += 3;
         }
 
