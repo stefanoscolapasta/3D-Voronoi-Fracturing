@@ -561,23 +561,26 @@ public:
 
     }
 
-    std::vector<VoronoiMesh>  convertToVoronoi( btVector3 meshCenter, glm::vec3 color) {
+    std::vector<VoronoiMesh>  convertToVoronoi( btVector3 meshCenter) {
         std::vector<Tetrahedron> tetras = std::vector<Tetrahedron>(tetrahedrons.begin(), tetrahedrons.end());
         std::vector<VoronoiMesh> vorMeshes;
         std::map <int, btVector3> tetraToVoronoiVertex;
         std::set<btVector3, btVector3Comparator> allVertices;
         setupCircumcentersAndVertices(tetraToVoronoiVertex, tetras, &allVertices);
+
+        std::map < btVector3, std::vector<btVector3>, btVector3Comparator> vertexToMeshVertices;
+        for (auto& tetra : tetras) {
+            for (auto& vertex : tetra.allSingularVertices) {
+                    btVector3 equivalentVertex = tetraToVoronoiVertex.at(tetra.VAO);
+                    vertexToMeshVertices[vertex].push_back(equivalentVertex);
+
+            }
+        }
+
         
          for (auto& vertex : allVertices) {
-             std::vector<Tetrahedron> incidentTetras = getTetrasIncidentToVertex(tetras, vertex);
-                 std::vector<btVector3> meshVertices;
-                 for (auto& incidentTetra : incidentTetras) {
-                     if (tetraToVoronoiVertex.find(incidentTetra.VAO) != tetraToVoronoiVertex.end()) {
-                         btVector3 equivalentVertex = tetraToVoronoiVertex.at(incidentTetra.VAO);
-                         meshVertices.push_back(equivalentVertex);
-                     }
-
-                 }
+             std::vector<btVector3> meshVertices = vertexToMeshVertices[vertex];
+                 
                  const int n = meshVertices.size();
                  if (n >3 ) {
                      qh_vertex_t* vertices = QH_MALLOC(qh_vertex_t, n);
@@ -586,7 +589,6 @@ public:
                          vertices[i].x = meshVertices[i].getX();
                          vertices[i].y = meshVertices[i].getY();
                          vertices[i].z = meshVertices[i].getZ();
-                         vertices[i].color = color;
                      }
 
 
@@ -601,7 +603,6 @@ public:
                          mesh.nindices,
                          mesh.nvertices,
                          mesh.nnormals,
-                         color
                      };
                      double meshVolume = calculateBoundingBoxVolume(vorMesh);
                      if (meshVolume < 20.0) {
@@ -810,7 +811,6 @@ private:
         }
 
         if (tetraPath->find(neighbour_through_f.VAO) != tetraPath->end()) {
-            std::cout << "Already visited" << endl;
             int randomIndex;
             do {
                 randomIndex = std::rand() % t_neighbours.size();

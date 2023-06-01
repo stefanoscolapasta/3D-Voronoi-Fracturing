@@ -60,6 +60,7 @@ TriangleFacet findSharedFacet(Tetrahedron t1, Tetrahedron t2);
 std::vector<btVector3>  sortFacetVerticesCounterClockwise(std::vector<btVector3> vertices);
 btVector3 getMeshCenter(std::set<btVector3, btVector3Comparator> vertices);
 
+std::vector<Tetrahedron> getTetrasIncidentToVertex(std::vector<Tetrahedron> tetras, btVector3 vertex);
 Tetrahedron getVertexFather(std::vector<Tetrahedron> tetras, btVector3 point);
 Tetrahedron getPointOnEdgeFather(std::vector<Tetrahedron> tetras, btVector3 point);
 bool isPointOnEdgeOfTetra(Tetrahedron tetra, btVector3 point);

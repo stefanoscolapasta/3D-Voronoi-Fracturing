@@ -17,7 +17,6 @@ struct VoronoiMesh {
 	unsigned int nindices;
 	unsigned int nvertices;
 	unsigned int nnormals;
-	glm::vec3 color;
 };
 
 
@@ -60,22 +59,6 @@ btVector3 getVoronoiMeshCenter(VoronoiMesh mesh) {
 	center = center/ numVertices;
 
 	return center;
-}
-
-std::vector<Tetrahedron> getTetrasIncidentToVertex(std::vector<Tetrahedron> tetras, btVector3 vertex){
-	std::set<Tetrahedron, TetrahedronComparator> incidentTetras;
-
-	for (Tetrahedron tetra : tetras) {
-			if (tetra.allSingularVertices.find(vertex) != tetra.allSingularVertices.end()
-				 && incidentTetras.find(tetra)==incidentTetras.end()) 
-				incidentTetras.insert(tetra);
-	}
-	
-	std::vector<Tetrahedron> incidentTetras_vector;
-	for(auto tetra: incidentTetras){
-		incidentTetras_vector.push_back(tetra);
-	}
-	return incidentTetras_vector;
 }
 
 

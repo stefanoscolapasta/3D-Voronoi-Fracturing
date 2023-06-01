@@ -461,6 +461,25 @@ Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> meshVertices, gl
     return tetrahedron;
 }
 
+
+std::vector<Tetrahedron> getTetrasIncidentToVertex(std::vector<Tetrahedron> tetras, btVector3 vertex) {
+    std::set<Tetrahedron, TetrahedronComparator> incidentTetras;
+
+    for (Tetrahedron tetra : tetras) {
+        if (tetra.allSingularVertices.find(vertex) != tetra.allSingularVertices.end()
+            && incidentTetras.find(tetra) == incidentTetras.end())
+            incidentTetras.insert(tetra);
+    }
+
+    std::vector<Tetrahedron> incidentTetras_vector;
+    for (auto tetra : incidentTetras) {
+        incidentTetras_vector.push_back(tetra);
+    }
+    return incidentTetras_vector;
+}
+
+
+
 Tetrahedron getVertexFather(std::vector<Tetrahedron> tetras, btVector3 point) {
     for (auto& tetra : tetras) {
         if (std::find(tetra.allSingularVertices.begin(), tetra.allSingularVertices.end(), point) != tetra.allSingularVertices.end()) {
@@ -645,6 +664,8 @@ btVector3 extractRandomPointInsideTetrahedron(Tetrahedron tetrahedron) {
     return point;
 
 }
+
+
 std::vector<btVector3> convertToVector(std::set<btVector3> s)
 {
     std::vector<btVector3> v;
