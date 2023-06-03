@@ -91,13 +91,13 @@ int main()
 
     //NB: here we should insert a random point contained in the big tetra
     int count = 0;
-    /*for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 50; i++) {
         btVector3 randomPoint = extractRandomPointInsideTetrahedron(meshEncapsulatingTetrahedron);
         vorFrac.insertOnePoint(randomPoint, cubePositions[0]);
         count += 1;
         std::cout << count << "\n";
-    }*/
-
+    }
+    vorFrac.removeExtraTetrahedrons();
     //vorFrac.removeExtraTetrahedrons();
 
     unsigned int cubeVAO = generateCubeVAO(cubeVertices);
@@ -150,7 +150,7 @@ int main()
             pe.dynamicsWorld->stepSimulation(getDeltaTime(), 10);
         }
 
-        if (wasNewPointInserted()) {
+        /*if (wasNewPointInserted()) {
             resetPointInsertionTrigger();
             if (insertedPoints < generatedVerticesFromMesh.size()) {
                 vorFrac.insertOnePoint(generatedVerticesFromMesh[insertedPoints], cubePositions[0]);
@@ -160,7 +160,10 @@ int main()
                 cout << "Removing tetras with big Tetra vertices";
                 vorFrac.removeExtraTetrahedrons();
             }
-        }
+        }*/
+
+
+
         /*if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) {
 
             vorFrac.insertOnePoint(btVector3(0.0f, 0.0f, 0.0f), initialTetra->getCenterOfMassTransform().getOrigin()); //*(vorFrac.tetraRigidbodies.begin()) is used to get the """first""" element in the set (sets are not strictly ordered)

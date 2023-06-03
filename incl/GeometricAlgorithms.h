@@ -82,7 +82,7 @@ public:
             Tetrahedron tetraFromWalk = stochasticWalk(tetrahedronsAsVectorForWalk, t);
 
             //they first need to be tested for the delaunay conditions
-            std::vector<Tetrahedron> newTetrahedronsIncidentToP = flip14(t, tetraFromWalk, startPos);
+            std::vector<Tetrahedron> newTetrahedronsIncidentToP = flip14(t, tetraFromWalk);
 
             //here, every tetra will be adjacent to another tetra that is not part of the star2 of the just insterted point P
             for (auto& tetra : newTetrahedronsIncidentToP) {
@@ -93,7 +93,7 @@ public:
                 getTetraSharingFacet(oppositeFacet, foundToBeSharingFacet, neighbour);
                 //TODO something must not be ok already here--> backtrack by analyzing the strange situation thre is on Blender (look at paper)
                 if (foundToBeSharingFacet && isPointInsideSphere(tetra, t)) {
-                    flip(tetra, neighbour, oppositeFacet, startPos, t);
+                    flip(tetra, neighbour, oppositeFacet, t);
                 }else{
                     tetrahedrons.insert(tetra);
                 }
@@ -127,16 +127,16 @@ public:
 
 
 
-    void flip(Tetrahedron &t1IncidentToP, Tetrahedron &neighbouring, TriangleFacet &oppositeFacet, btVector3 startPos, btVector3 &p) {
+    void flip(Tetrahedron &t1IncidentToP, Tetrahedron &neighbouring, TriangleFacet &oppositeFacet, btVector3 &p) {
         //Because verifying if from p two faces are visible or not is expensive, it makes sense to leave the caseTwo as last one
 
         if (caseOne(neighbouring, p, oppositeFacet)) {
-            flip23({ t1IncidentToP, neighbouring }, startPos);
+            flip23({ t1IncidentToP, neighbouring });
         }
         else {
             Tetrahedron thirdTetraFoundToFlip;
             if (caseTwo(t1IncidentToP, neighbouring, oppositeFacet, p, thirdTetraFoundToFlip)) {
-                flip32({ t1IncidentToP, neighbouring, thirdTetraFoundToFlip }, startPos);
+                flip32({ t1IncidentToP, neighbouring, thirdTetraFoundToFlip });
             }
             else {
                 bool areCoplanar;
@@ -145,11 +145,11 @@ public:
 
                     std::vector<Tetrahedron> firstTetraCoupleToFlip = { t1IncidentToP, neighbouring };
                     std::vector<Tetrahedron> secondTetraCoupleToFlip = { neighbourCouple.first , neighbourCouple.second };
-                    flip44(firstTetraCoupleToFlip, secondTetraCoupleToFlip, startPos);
+                    flip44(firstTetraCoupleToFlip, secondTetraCoupleToFlip);
                     
                 }
                 else if (caseFour(t1IncidentToP, neighbouring, oppositeFacet, p)) {
-                    flip23({ t1IncidentToP, neighbouring }, startPos);
+                    flip23({ t1IncidentToP, neighbouring });
                 }
                 else {
                     //If none above then just add the damn tetra, I'm starting to get mad at this algorithm
@@ -290,7 +290,7 @@ public:
         return arePointsCoplanar(sharedFacet.vertices[0], sharedFacet.vertices[1], sharedFacet.vertices[2], p);
     }
 
-    std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron, btVector3 startPos) {
+    std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron) {
         std::vector<Tetrahedron> newTetrahedrons;
 
         //For some reason the third face is degenerate
@@ -359,7 +359,7 @@ public:
 
 
 
-    std::vector<Tetrahedron> flip23(std::vector<Tetrahedron> tetrasToFlip, btVector3 startPos) {
+    std::vector<Tetrahedron> flip23(std::vector<Tetrahedron> tetrasToFlip) {
         bool haveOneSameFacet = false;
         TriangleFacet sameFacet;
 
@@ -402,7 +402,7 @@ public:
 
                 Tetrahedron newTetra;
                 generateTetrahedronFromFacets(newTetra, facets);
-                completeAndInsertTetrahedron(newTetra, startPos);
+                completeAndInsertTetrahedron(newTetra);
 
                 flippedTetrahedrons.push_back(newTetra);
             }
@@ -419,7 +419,7 @@ public:
 
 
 
-    std::vector<Tetrahedron> flip32(std::vector<Tetrahedron> tetrasToFlip, btVector3 startPos) {
+    std::vector<Tetrahedron> flip32(std::vector<Tetrahedron> tetrasToFlip) {
         //I assume the given tetrahedrons are correct and neighbours
         //I now need to find the facet they share
         //I can leverage the fact that the vertices along the shared edge are the only ones shared by 3 tetrahedrons to find them
@@ -475,7 +475,7 @@ public:
 
                 Tetrahedron newTetra;
                 generateTetrahedronFromFacets(newTetra, facets);
-                completeAndInsertTetrahedron(newTetra, startPos);
+                completeAndInsertTetrahedron(newTetra);
                 newTetras.push_back(newTetra);
             }
 
@@ -489,13 +489,13 @@ public:
         throw std::invalid_argument("Something went wrong: the passed tetrahedrons do not share a facet");
     }
 
-    std::pair<std::vector<Tetrahedron>, std::vector<Tetrahedron>> flip44(std::vector<Tetrahedron> firstCoupleToFlip, std::vector<Tetrahedron> secondCoupleToFlip, btVector3 startPos) {
+    std::pair<std::vector<Tetrahedron>, std::vector<Tetrahedron>> flip44(std::vector<Tetrahedron> firstCoupleToFlip, std::vector<Tetrahedron> secondCoupleToFlip) {
         //flip44 is a combination of a flip23 followed by a flip32
-        std::vector<Tetrahedron> flippedWithDegenerateTetraFirstCouple = flip23(firstCoupleToFlip, startPos);
-        std::vector<Tetrahedron> flippedFirstCouple = flip32(flippedWithDegenerateTetraFirstCouple, startPos);
+        std::vector<Tetrahedron> flippedWithDegenerateTetraFirstCouple = flip23(firstCoupleToFlip);
+        std::vector<Tetrahedron> flippedFirstCouple = flip32(flippedWithDegenerateTetraFirstCouple);
 
-        std::vector<Tetrahedron> flippedWithDegenerateTetraSecondCouple = flip23(secondCoupleToFlip, startPos);
-        std::vector<Tetrahedron> flippedSecondCouple = flip32(flippedWithDegenerateTetraSecondCouple, startPos);
+        std::vector<Tetrahedron> flippedWithDegenerateTetraSecondCouple = flip23(secondCoupleToFlip);
+        std::vector<Tetrahedron> flippedSecondCouple = flip32(flippedWithDegenerateTetraSecondCouple);
 
         return std::make_pair(flippedFirstCouple, flippedSecondCouple);
     }
@@ -506,7 +506,7 @@ public:
 
 
 
-    void completeAndInsertTetrahedron(Tetrahedron& tetra, btVector3 startPos) {
+    void completeAndInsertTetrahedron(Tetrahedron& tetra) {
         tetra.color = glm::vec3(1, 1, 1);
         tetra.VAO = createTetrahedronVAO(tetra);
 
