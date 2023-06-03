@@ -113,7 +113,7 @@ int main()
     //---------------------------------------
 
 
-
+    int insertedPoints = 0;
     while (!glfwWindowShouldClose(window))
     {
 
@@ -152,8 +152,14 @@ int main()
 
         if (wasNewPointInserted()) {
             resetPointInsertionTrigger();
-            btVector3 randomPoint = extractRandomPointInsideTetrahedron(meshEncapsulatingTetrahedron);
-            vorFrac.insertOnePoint(randomPoint, cubePositions[0]);
+            if (insertedPoints < generatedVerticesFromMesh.size()) {
+                vorFrac.insertOnePoint(generatedVerticesFromMesh[insertedPoints], cubePositions[0]);
+                insertedPoints += 1;
+            }
+            else {
+                cout << "Removing tetras with big Tetra vertices";
+                vorFrac.removeExtraTetrahedrons();
+            }
         }
         /*if (checkForCollisionBetweenRbsAB(pe, cubeTerrainRigidbody, initialTetra)) {
 

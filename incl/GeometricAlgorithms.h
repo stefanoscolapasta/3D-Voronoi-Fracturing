@@ -28,6 +28,7 @@ public:
     //Voronoi data-structs
     std::vector<btRigidBody*> vorRigidBodies;
     std::map<btRigidBody*, VoronoiMesh> vorToMesh;
+    std::map<btVector3,bool, btVector3Comparator> alreadyAddedPoints;
 
     //The model passed has to be made up of tetrahedrons already
     //That is why initialization must be done through the "big" tetrahedron
@@ -71,41 +72,51 @@ public:
 
     void insertOnePoint(btVector3 t, btVector3 startPos) { //For now no need to implement the walk algorithm, as we try to just insert the point in the main/first tetrahedron
 
-        //I now convert the set<Tetrahedrons, TetrahedronComparator> to a vector<Tetrahedron>
+        //I need to check if such point was already inserted, to avoid strange edge cases
+        if (alreadyAddedPoints.count(t) == 0) {
 
-        std::vector<Tetrahedron> tetrahedronsAsVectorForWalk(tetrahedrons.begin(), tetrahedrons.end());
+            alreadyAddedPoints[t] = true;
+              
+            std::vector<Tetrahedron> tetrahedronsAsVectorForWalk(tetrahedrons.begin(), tetrahedrons.end());
 
-        Tetrahedron tetraFromWalk = stochasticWalk(tetrahedronsAsVectorForWalk, t);
+            Tetrahedron tetraFromWalk = stochasticWalk(tetrahedronsAsVectorForWalk, t);
 
-        //they first need to be tested for the delaunay conditions
-        std::vector<Tetrahedron> newTetrahedronsIncidentToP = flip14(getTetrahedronCenter(tetraFromWalk), tetraFromWalk, startPos);
+            //they first need to be tested for the delaunay conditions
+            std::vector<Tetrahedron> newTetrahedronsIncidentToP = flip14(t, tetraFromWalk, startPos);
 
-        //here, every tetra will be adjacent to another tetra that is not part of the star2 of the just insterted point P
-        for (auto& tetra : newTetrahedronsIncidentToP) {
-            TriangleFacet oppositeFacet = getOppositeFacetToVertice(tetra, t);
+            //here, every tetra will be adjacent to another tetra that is not part of the star2 of the just insterted point P
+            for (auto& tetra : newTetrahedronsIncidentToP) {
+                TriangleFacet oppositeFacet = getOppositeFacetToVertice(tetra, t);
 
-            bool foundToBeSharingFacet = false;
-            Tetrahedron neighbour;
-            getTetraSharingFacet(oppositeFacet, foundToBeSharingFacet, neighbour);
+                bool foundToBeSharingFacet = false;
+                Tetrahedron neighbour;
+                getTetraSharingFacet(oppositeFacet, foundToBeSharingFacet, neighbour);
+                //TODO something must not be ok already here--> backtrack by analyzing the strange situation thre is on Blender (look at paper)
+                if (foundToBeSharingFacet && isPointInsideSphere(tetra, t)) {
+                    flip(tetra, neighbour, oppositeFacet, startPos, t);
+                }else{
+                    tetrahedrons.insert(tetra);
+                }
 
-            if (foundToBeSharingFacet && isPointInsideSphere(tetra, t)) {
-                flip(tetra, neighbour, oppositeFacet, startPos, t);
             }
-
         }
-
     }
 
     void removeExtraTetrahedrons() {
         for (auto& initialTetra : initialTetras) {
             for (auto& vertex : initialTetra.allSingularVertices) {
-                for (auto& tetra : tetrahedrons) {
-                    
-                    if (tetra.allSingularVertices.find(vertex) != tetra.allSingularVertices.end()) {
-                        tetrahedrons.erase(tetra);
-                        break;
+                int visitedTetras = 0;
+                do {
+                    for (auto& tetra : tetrahedrons) {
+                        visitedTetras += 1;
+                        if (tetra.allSingularVertices.find(vertex) != tetra.allSingularVertices.end()) {
+                            tetrahedrons.erase(tetra);
+                            visitedTetras = 0;
+                            break;
+                        }
                     }
-                }
+                } while (visitedTetras < tetrahedrons.size());
+                
             }
             
         }
@@ -119,7 +130,7 @@ public:
     void flip(Tetrahedron &t1IncidentToP, Tetrahedron &neighbouring, TriangleFacet &oppositeFacet, btVector3 startPos, btVector3 &p) {
         //Because verifying if from p two faces are visible or not is expensive, it makes sense to leave the caseTwo as last one
 
-        if (caseOne(neighbouring, p)) {
+        if (caseOne(neighbouring, p, oppositeFacet)) {
             flip23({ t1IncidentToP, neighbouring }, startPos);
         }
         else {
@@ -140,22 +151,34 @@ public:
                 else if (caseFour(t1IncidentToP, neighbouring, oppositeFacet, p)) {
                     flip23({ t1IncidentToP, neighbouring }, startPos);
                 }
+                else {
+                    //If none above then just add the damn tetra, I'm starting to get mad at this algorithm
+                    tetrahedrons.insert(t1IncidentToP);
+                }
             } 
         }
         
 
     }
 
-    std::pair<int, std::vector<TriangleFacet>> neighbourTetraFacetsVisibleFromP(btVector3 &p, Tetrahedron &neighbour) {
-        int numberOfVisibleFacets = 0;
+    std::pair<int, std::vector<TriangleFacet>> neighbourTetraFacetsVisibleFromP(btVector3 &p, Tetrahedron &neighbour, TriangleFacet& sharedFacet) {
+        int numberOfVisibleFacetsApartFromShared = 0;
         std::vector<TriangleFacet> visibleFacets;
+
+        std::set<btVector3, btVector3Comparator> vertsShared(sharedFacet.vertices.begin(), sharedFacet.vertices.end());
+
         for (auto& facet : neighbour.facets) {
-            if (!isVectorPassingThroughFacet(p, facet.getCenter(), facet)) {
-                numberOfVisibleFacets += 1;
-                visibleFacets.push_back(facet);
+            std::set<btVector3, btVector3Comparator> vertsFacet(facet.vertices.begin(), facet.vertices.end());
+            
+            if (vertsShared != vertsFacet) {
+                if (!isVectorPassingThroughAFacet(p, facet.getCenter(), neighbour.facets)) {
+                    numberOfVisibleFacetsApartFromShared += 1;
+                    visibleFacets.push_back(facet);
+                }
             }
+            
         }
-        return std::make_pair(numberOfVisibleFacets, visibleFacets);
+        return std::make_pair(numberOfVisibleFacetsApartFromShared, visibleFacets);
     }
 
     void getTetraSharingFacet(TriangleFacet& f, bool &found, Tetrahedron &neighbour) {
@@ -170,20 +193,25 @@ public:
                 }
             }
             if (count == VERTICES_PER_TETRA_FACET) {
-                neighbour = tetra;
+                neighbour.allSingularVertices = tetra.allSingularVertices;
+                neighbour.color = tetra.color;
+                neighbour.facets = tetra.facets;
+                neighbour.VAO = tetra.VAO;
+                neighbour.verticesAsSingleArr = tetra.verticesAsSingleArr;
                 found = true;
+                break;
             }
-            
+
         }
-        found = false;
+        
     }
 
-    bool caseOne(Tetrahedron& neighbour, btVector3 &p) {
-        return neighbourTetraFacetsVisibleFromP(p, neighbour).first == 1;
+    bool caseOne(Tetrahedron& neighbour, btVector3 &p, TriangleFacet& sharedFacet) {
+        return neighbourTetraFacetsVisibleFromP(p, neighbour, sharedFacet).first == 1;
     }
 
     bool caseTwo(Tetrahedron& incidentToP, Tetrahedron& neighbour, TriangleFacet& sharedFacet, btVector3& p, Tetrahedron& thirdTetraFoundToFlip) {
-        std::pair<int, std::vector<TriangleFacet>> visibilityInformation = neighbourTetraFacetsVisibleFromP(p, neighbour);
+        std::pair<int, std::vector<TriangleFacet>> visibilityInformation = neighbourTetraFacetsVisibleFromP(p, neighbour, sharedFacet);
         if (visibilityInformation.first == 2) {
             for (auto& facet : visibilityInformation.second) {
                 std::set<btVector3, btVector3Comparator> verticesOfPossibleTetra({ facet.vertices[0], facet.vertices[1], facet.vertices[2], p });
@@ -316,7 +344,9 @@ public:
             for (int k = 0; k < GL_TOTAL_VERTICES_FLOAT_VALUES_PER_TETRA; k++) {
                 newInsertedTetrahedron.verticesAsSingleArr.push_back(flattenedValues[k]);
             }
-            completeAndInsertTetrahedron(newInsertedTetrahedron, startPos);
+            //completeAndInsertTetrahedron(newInsertedTetrahedron, startPos); -> do not call it because with the flip14 we dont want to immediately add the tetras 
+            newInsertedTetrahedron.color = glm::vec3(1, 1, 1);
+            newInsertedTetrahedron.VAO = createTetrahedronVAO(newInsertedTetrahedron);
             newTetrahedrons.push_back(newInsertedTetrahedron);
             
         }
@@ -456,7 +486,7 @@ public:
             return newTetras;
         }
 
-        throw std::invalid_argument("Something went wrong: the passed tetrahedron do not share a facet");
+        throw std::invalid_argument("Something went wrong: the passed tetrahedrons do not share a facet");
     }
 
     std::pair<std::vector<Tetrahedron>, std::vector<Tetrahedron>> flip44(std::vector<Tetrahedron> firstCoupleToFlip, std::vector<Tetrahedron> secondCoupleToFlip, btVector3 startPos) {
@@ -495,6 +525,25 @@ public:
             }
         }
 
+        //This deals with possible degenerate cases
+        if (uniqueVertices.size() == 0) {
+            for (int i = 0; i < 4; i++) {
+                uniqueVertices.push_back(btVector3(0, 0, 0));
+            }
+        } else if (uniqueVertices.size() == 1) {
+            for (int i = 0; i < 3; i++) {
+                uniqueVertices.push_back(uniqueVertices[0]);
+            }
+        } else if (uniqueVertices.size() == 2) {
+            uniqueVertices.push_back(uniqueVertices[0]);
+            uniqueVertices.push_back(uniqueVertices[1]);
+        } else if (uniqueVertices.size() == 3) {
+            uniqueVertices.push_back(uniqueVertices[0]);
+            uniqueVertices.push_back(uniqueVertices[1]);
+            uniqueVertices.push_back(uniqueVertices[2]);
+        }
+
+
         tetraToGenerate = {
             {NULL},
             {uniqueVertices[0], uniqueVertices[1], uniqueVertices[2], uniqueVertices[3]},
@@ -520,7 +569,7 @@ public:
 
     btVector3 getOppositeVerticeToFacet(Tetrahedron tetra, TriangleFacet facet){
         for (auto& vertex : tetra.allSingularVertices) {
-            if (std::find(facet.vertices.begin(), facet.vertices.end(), vertex) != facet.vertices.end()) {
+            if (std::find(facet.vertices.begin(), facet.vertices.end(), vertex) == facet.vertices.end()) {
                 return vertex;
             }
         }
