@@ -3,6 +3,7 @@
 //OPENGL UTILS
 bool startSimulation = false;
 bool insertNewPointTrigger = false;
+bool wasInsertTriggeredReleased = true;
 // timing
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -58,6 +59,26 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
         camera.ProcessKeyboard(LEFT, deltaTime, accelerationMultiplier);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+
+    //------------------------------- INSERTION -------------------------
+
+    if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
+        if (wasInsertTriggeredReleased) {
+            wasInsertTriggeredReleased = false;
+            insertNewPointTrigger = true;
+        }
+        else {
+            insertNewPointTrigger = false;
+        }
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_I) == GLFW_RELEASE) {
+        wasInsertTriggeredReleased = true;
+        insertNewPointTrigger = false;
+    }
+
+    //------------------------------- INSERTION -------------------------  
+
         camera.ProcessKeyboard(RIGHT, deltaTime, accelerationMultiplier);
     if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS)
         insertNewPointTrigger = true;
@@ -266,18 +287,16 @@ btVector3 getSphereCenter(std::set<btVector3, btVector3Comparator> points) {
 
 }
 
-
 bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 p) {
     btVector3 center_bt = getSphereCenter(tetrahedron.allSingularVertices);
     glm::vec3 center = convertToVec3(center_bt);
     std::vector<glm::vec3> tetra_vertices;
     //vertices conversion
-    int i = 0;
+
     for (std::set<btVector3>::iterator v = tetrahedron.allSingularVertices.begin();
         v != tetrahedron.allSingularVertices.end(); v++) {
         btVector3 vertex = *v;
-        tetra_vertices[i] = convertToVec3(vertex);
-        i++;
+        tetra_vertices.push_back(convertToVec3(vertex));
     }
 
     glm::vec3 point = convertToVec3(p);
@@ -293,6 +312,7 @@ bool isPointInsideSphere(Tetrahedron tetrahedron, btVector3 p) {
 bool isPointInsideTetrahedron(Tetrahedron tetrahedron, btVector3 point) {
 
     std::set<btVector3, btVector3Comparator> vertices = tetrahedron.allSingularVertices;
+    int size = vertices.size();
     btVector3 v0 = *std::next(vertices.begin(), 0);
     btVector3 v1 = *std::next(vertices.begin(), 1);
     btVector3 v2 = *std::next(vertices.begin(), 2);
@@ -359,7 +379,7 @@ bool areTriangleFacetsEqual(const TriangleFacet& f1, const TriangleFacet& f2) {
     std::sort(sortedVerticesF1.begin(), sortedVerticesF1.end(), comparator);
     std::sort(sortedVerticesF2.begin(), sortedVerticesF2.end(), comparator);
 
-    for (int i = 0; i < sortedVerticesF1.size(); i++) {
+    for (int i = 0; i < 3; i++) {
         if(sortedVerticesF1[i]!=sortedVerticesF2[i])
             return false;
        }
@@ -422,7 +442,7 @@ Tetrahedron CreateTetrahedronAroundShape(std::vector<btVector3> meshVertices, gl
     float tetrahedronSize = shapeSize * std::sqrt(6.0f);
 
     // Calculate the scale factor to transform the unit tetrahedron to the desired size
-    float scaleFactor = tetrahedronSize / std::sqrt(5.0f);
+    float scaleFactor = tetrahedronSize / std::sqrt(15.0f);
 
     // Determine the vertices of the scaled unit tetrahedron
     btVector3 vertex1(center.x() - scaleFactor, center.y() - scaleFactor, center.z() - scaleFactor);
@@ -564,39 +584,42 @@ bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3) {
     return crossProduct.length2() < EPSILON;
 }
 
-bool isVectorPassingThroughFacet(btVector3 origin, btVector3 end, TriangleFacet facet) {
-    const float EPSILON = 1e-6;
-    // Calculate the normal vector of the facet
-    btVector3 v0 = facet.vertices[0];
-    btVector3 v1 = facet.vertices[1];
-    btVector3 v2 = facet.vertices[2];
-    btVector3 normal = (v1 - v0).cross(v2 - v0).normalize();
 
-    // Calculate the direction of the vector passing through the facet
-    btVector3 direction = (end - origin).normalize();
+bool isVectorPassingThroughAFacet(btVector3 origin, btVector3 end, std::vector<TriangleFacet> facets) {
+    for (auto& facet : facets) {
+        const float EPSILON = 1e-6;
+        // Calculate the normal vector of the facet
+        btVector3 v0 = facet.vertices[0];
+        btVector3 v1 = facet.vertices[1];
+        btVector3 v2 = facet.vertices[2];
+        btVector3 normal = (v1 - v0).cross(v2 - v0).normalize();
 
-    // Check if the vector is passing through the facet
-    if (std::abs(normal.dot(direction)) < EPSILON) {
-        // Vector is parallel to the facet, it does not pass through
-        return false;
-    }
+        // Calculate the direction of the vector passing through the facet
+        btVector3 direction = (end - origin).normalize();
 
-    // Calculate the parameter t for the intersection point
-    float t = (v0 - origin).dot(normal) / direction.dot(normal);
+        // Check if the vector is passing through the facet
+        if (std::abs(normal.dot(direction)) < EPSILON) {
+            // Vector is parallel to the facet, it does not pass through
+            continue;
+        }
 
-    // Check if the intersection point is within the bounds of the facet
-    if (t >= 0 && t <= 1) {
-        // Calculate the intersection point
-        btVector3 intersection = origin + direction * t;
+        // Calculate the parameter t for the intersection point
+        float t = (v0 - origin).dot(normal) / direction.dot(normal);
 
-        // Check if the intersection point is inside the facet
-        if (isPointOnFacet(EPSILON, facet, intersection)) {
-            return true;
+        // Check if the intersection point is within the bounds of the facet
+        if (t >= 0 && t <= 1) {
+            // Calculate the intersection point
+            btVector3 intersection = origin + direction * t;
+
+            // Check if the intersection point is inside the facet
+            if (isPointOnFacet(EPSILON, facet, intersection)) {
+                return true;
+            }
         }
     }
-
     return false;
 }
+
 bool arePointsCoplanar(const btVector3& p1, const btVector3& p2, const btVector3& p3, const btVector3& p4) {
     // Calculate the normal vector of the plane formed by p1, p2, and p3
     btVector3 normal = (p2 - p1).cross(p3 - p1).normalize();

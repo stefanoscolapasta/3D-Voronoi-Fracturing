@@ -68,7 +68,7 @@ Tetrahedron getPointOnFaceFather(std::vector<Tetrahedron> tetras, btVector3 poin
 bool isPointOnFaceOfTetra(Tetrahedron tetra, btVector3 point);
 bool isPointOnFacet(float EPSILON, TriangleFacet facet, btVector3 point);
 bool isCollinear(btVector3 p1, btVector3 p2, btVector3 p3);
-bool isVectorPassingThroughFacet(btVector3 start, btVector3 end, TriangleFacet facet);
+bool isVectorPassingThroughAFacet(btVector3 start, btVector3 end, std::vector<TriangleFacet> facets);
 bool arePointsCoplanar(const btVector3& p1, const btVector3& p2, const btVector3& p3, const btVector3& p4);
 
 std::vector<btVector3> convertToVector(std::set<btVector3> v);
