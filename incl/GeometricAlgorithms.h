@@ -646,21 +646,13 @@ public:
                          0,0,0,
                          std::set<btVector3, btVector3Comparator>(meshVertices.begin(), meshVertices.end()),
                          mesh.vertices,
-                         mesh.normals,
                          mesh.indices,
-                         mesh.normalindices,
                          mesh.nindices,
                          mesh.nvertices,
-                         mesh.nnormals,
                      };
                      double meshVolume = calculateBoundingBoxVolume(vorMesh);
                      if (meshVolume < 2.0) {
                          btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, vorMesh, startPos);
-                         /*btTransform centerOfMassTransform;
-                         centerOfMassTransform.setIdentity();
-                         btVector3 centerOfMassPosition(getVoronoiMeshCenter(vorMesh));
-                         centerOfMassTransform.setOrigin(meshCenter);
-                         vorRigidBody->setCenterOfMassTransform(centerOfMassTransform);*/
                          vorRigidBodies.push_back(vorRigidBody);
                          vorRigidBodyToMesh[vorRigidBody] = vorMesh;
                          vorMeshes.push_back(vorMesh);

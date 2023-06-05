@@ -153,7 +153,7 @@ int main()
              btVector3 meshCenter = trans.getOrigin();
             pe.dynamicsWorld->removeRigidBody(modelRigidBody);
             pe.dynamicsWorld->removeCollisionObject(modelRigidBody);
-            std::vector<VoronoiMesh> voronoiResult=vorFrac.convertToVoronoi( meshCenter+btVector3(-2.0f,1.0f,0.0f));
+            std::vector<VoronoiMesh> voronoiResult=vorFrac.convertToVoronoi( meshCenter+btVector3(0.0f,1.0f,0.0f));
         }
 
         if (!isCollided) {

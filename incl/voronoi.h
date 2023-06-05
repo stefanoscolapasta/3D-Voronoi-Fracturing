@@ -11,12 +11,9 @@ struct VoronoiMesh {
 	unsigned int VAO, VBO, EBO;
 	std::set<btVector3, btVector3Comparator> allUniqueVertices;
 	qh_vertex_t* vertices;
-	qh_vec3_t* normals;
 	unsigned int* indices;
-	unsigned int* normalindices;
 	unsigned int nindices;
 	unsigned int nvertices;
-	unsigned int nnormals;
 };
 
 
