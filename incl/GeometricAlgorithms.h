@@ -610,7 +610,7 @@ public:
 
     }
 
-    std::vector<VoronoiMesh>  convertToVoronoi( btVector3 meshCenter) {
+    std::vector<VoronoiMesh>  convertToVoronoi( btVector3 startPos) {
         std::vector<Tetrahedron> tetras = std::vector<Tetrahedron>(tetrahedrons.begin(), tetrahedrons.end());
         std::vector<VoronoiMesh> vorMeshes;
         std::map <int, btVector3> tetraToVoronoiVertex;
@@ -655,12 +655,12 @@ public:
                      };
                      double meshVolume = calculateBoundingBoxVolume(vorMesh);
                      if (meshVolume < 2.0) {
-                         btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, vorMesh, meshCenter);
-                         btTransform centerOfMassTransform;
+                         btRigidBody* vorRigidBody = addVoronoiRigidBody(pe, vorMesh, startPos);
+                         /*btTransform centerOfMassTransform;
                          centerOfMassTransform.setIdentity();
                          btVector3 centerOfMassPosition(getVoronoiMeshCenter(vorMesh));
                          centerOfMassTransform.setOrigin(meshCenter);
-                         vorRigidBody->setCenterOfMassTransform(centerOfMassTransform);
+                         vorRigidBody->setCenterOfMassTransform(centerOfMassTransform);*/
                          vorRigidBodies.push_back(vorRigidBody);
                          vorRigidBodyToMesh[vorRigidBody] = vorMesh;
                          vorMeshes.push_back(vorMesh);

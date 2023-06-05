@@ -81,6 +81,8 @@ int main()
     std::vector<btVector3> generatedVerticesFromMesh;
     generateVerticesFromMesh(model.meshes[0], generatedVerticesFromMesh);
     Tetrahedron tetraEncapsulatingMesh = CreateTetrahedronAroundShape(generatedVerticesFromMesh, glm::vec3(1, 1, 1));
+
+
     VoronoiFracturing vorFrac(tetraEncapsulatingMesh, pe);
     int count = 0;
     for (int i = 0; i < 100;i++) {
@@ -151,7 +153,7 @@ int main()
              btVector3 meshCenter = trans.getOrigin();
             pe.dynamicsWorld->removeRigidBody(modelRigidBody);
             pe.dynamicsWorld->removeCollisionObject(modelRigidBody);
-            std::vector<VoronoiMesh> voronoiResult=vorFrac.convertToVoronoi( meshCenter);
+            std::vector<VoronoiMesh> voronoiResult=vorFrac.convertToVoronoi( meshCenter+btVector3(-2.0f,1.0f,0.0f));
         }
 
         if (!isCollided) {

@@ -59,6 +59,7 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
         camera.ProcessKeyboard(LEFT, deltaTime, accelerationMultiplier);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera.ProcessKeyboard(RIGHT, deltaTime, accelerationMultiplier);
 
     //------------------------------- INSERTION -------------------------
 
@@ -77,11 +78,9 @@ void processInput(GLFWwindow* window)
         insertNewPointTrigger = false;
     }
 
-    //------------------------------- INSERTION -------------------------  
+    //------------------------------- INSERTION -------------------------    
 
-        camera.ProcessKeyboard(RIGHT, deltaTime, accelerationMultiplier);
-    if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS)
-        insertNewPointTrigger = true;
+
     if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
         startSimulation = true;
     if (glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE)
@@ -92,6 +91,7 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_RELEASE)
         accelerationMultiplier = false;
 }
+
 
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
