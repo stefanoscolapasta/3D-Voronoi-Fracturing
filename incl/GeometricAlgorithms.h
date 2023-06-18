@@ -263,7 +263,14 @@ public:
     }
 
     bool caseFour(Tetrahedron& t1Incident, Tetrahedron& t2, TriangleFacet& sharedFacet, btVector3& p) {
-        return arePointsCoplanar(sharedFacet.vertices[0], sharedFacet.vertices[1], sharedFacet.vertices[2], p);
+        btVector3 d = getOppositeVerticeToFacet(t2, sharedFacet);
+        bool coplanarToAnyLateralFacet =
+            arePointsCoplanar(sharedFacet.vertices[0], sharedFacet.vertices[1], d, p) ||
+            arePointsCoplanar(sharedFacet.vertices[1], sharedFacet.vertices[2], d, p) ||
+            arePointsCoplanar(sharedFacet.vertices[2], sharedFacet.vertices[0], d, p);
+
+        //This way it means that it is on an edge of the shared facet
+        return arePointsCoplanar(sharedFacet.vertices[0], sharedFacet.vertices[1], sharedFacet.vertices[2], p) && coplanarToAnyLateralFacet;
     }
 
     std::vector<Tetrahedron> flip14(btVector3 t, Tetrahedron tetrahedron, btVector3 startPos) {
