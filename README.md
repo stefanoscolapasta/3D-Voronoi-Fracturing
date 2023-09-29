@@ -3,5 +3,5 @@ Project for the "DH2323 - Computer Graphics and Interaction" course at KTH Royal
 
 ## Project specification
 
-More details here: [Project_specification.pdf](https://github.com/stefanoscolapasta/3D-Voronoi-Fracturing/files/11365207/Project_specification.pdf)
+More details here: [Final Report](https://github.com/stefanoscolapasta/3D-Voronoi-Fracturing/blob/main/ComputerGraphicsVoronoiReport-6.pdf)
 
